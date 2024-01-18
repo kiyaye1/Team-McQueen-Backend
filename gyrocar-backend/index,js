@@ -1,0 +1,23 @@
+const express = require("express")
+var app = express()
+
+var mysql = require("mysql")
+var db = mysql.createConnection(
+    {
+        host: "db-1.ckkvuqjth30g.us-east-2.rds.amazonaws.com",
+        user: "admin",
+        password: "wUYVAhkwJeyfScDiX1mQ",
+        database: "GyroCar"
+    }
+)
+
+app.get("/", function(request, response){
+    db.query("SELECT * FROM CustomerStatus;", function (error, result, fields) {
+        response.send(result)
+    })
+})
+
+app.listen(8080, function () {
+    console.log("Started application on port %d", 8080)
+  
+});
