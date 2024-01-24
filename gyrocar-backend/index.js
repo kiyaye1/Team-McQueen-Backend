@@ -3,11 +3,15 @@ var app = express();
 
 const db = require('./database');
 
+// Automatically parse request body
+app.use(express.json())
+
 // Defining route location
 const customersRoute = require('./routes/customers');
 
 // Bind requests to route
 app.use('/customers', customersRoute);
+
 
 app.get("/", function(request, response){
     // This is only a test
