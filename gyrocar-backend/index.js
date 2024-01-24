@@ -3,6 +3,11 @@ var app = express();
 
 const db = require('./database');
 
+// Defining route location
+const customersRoute = require('./routes/customers');
+
+// Bind requests to route
+app.use('/customers', customersRoute);
 
 app.get("/", function(request, response){
     // This is only a test
