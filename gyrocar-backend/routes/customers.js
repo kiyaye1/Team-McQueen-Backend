@@ -53,26 +53,36 @@ router.post('/', function(req, res) {
 
     // Insert the row and fetch the row back from the 
     // database to be returned to the client
-    // TODO: ensure uniqueness with email address
-    // before inserting
-    db.insert(
-        {
-            statusCode: 'PVN', // Pending Verification
-            firstName: req.body['firstName'],
-            lastName: req.body['lastName'],
-            emailAddress: req.body['emailAddress'],
-            phoneVerified: 0, // false
-            emailVerified: 0 //false
-        }
-    ).into('Customer').then(function(result) {
-        let customerID = result[0];
 
-        db.select(customerObjectFields).from('Customer')
-            .where('customerID', customerID)
-            .then(function(result) {
-                res.send(result);
-            })
-    });
+    // check to make sure email address is not currently being used
+    db.select('emailAddress').from('Customer')
+        .where('emailAddress', req.body['emailAddress']).then(function(result) {
+            if (result.length > 0) {
+                // email was found in the database
+                res.status(400).send("Email address " + req.body['emailAddress'] + " is already in use");
+                return;
+            }
+
+            // email was not found, continue process
+            db.insert(
+                {
+                    statusCode: 'PVN', // Pending Verification
+                    firstName: req.body['firstName'],
+                    lastName: req.body['lastName'],
+                    emailAddress: req.body['emailAddress'],
+                    phoneVerified: 0, // false
+                    emailVerified: 0 //false
+                }
+            ).into('Customer').then(function(result) {
+                let customerID = result[0];
+        
+                db.select(customerObjectFields).from('Customer')
+                    .where('customerID', customerID)
+                    .then(function(result) {
+                        res.send(result);
+                    })
+            });
+    })
 })
 
 
