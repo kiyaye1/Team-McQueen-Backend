@@ -50,6 +50,19 @@ router.post('/', function(req, res) {
         res.status(400).send("Missing required fields: " + missingFields.join(', '));
         return
     }
+    
+    // check to make sure all elements in
+    // the request body are understood
+    invalidFields = []
+    Object.keys(req.body).forEach(field => {
+        if (!customerObjectFields.includes(field)) {
+            invalidFields.push(field);
+        }
+    });
+    if (invalidFields.length > 0) {
+        res.status(400).send("The following fields are invalid for this request: " + invalidFields.join(', '));
+        return
+    }
 
     // Insert the row and fetch the row back from the 
     // database to be returned to the client
