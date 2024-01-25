@@ -1,11 +1,16 @@
 const express = require('express');
 const router = express.Router();
 
+const dayjs = require('dayjs');
+var utc = require('dayjs/plugin/utc')
+dayjs.extend(utc)
+
 const db = require('../database');
 
 const customerObjectFields = [
     "customerID", "firstName", "lastName", "middleInitial", "suffix", "statusCode",
     "username", "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
+    "driversLicenseNum", "driversLicenseState"
 ]
 
 router.get('/:customer_id', function(req, res) {
@@ -38,7 +43,7 @@ router.get('/:customer_id', function(req, res) {
 router.post('/', function(req, res) {
     // Check to make sure request body has minimally
     // required fields in order to create a customer
-    requiredFields = ["firstName", "lastName", "emailAddress"]
+    requiredFields = ["firstName", "lastName", "emailAddress", "driversLicencseNum", "driversLicenseState"]
 
     missingFields = [];
     requiredFields.forEach(field => {
@@ -78,14 +83,15 @@ router.post('/', function(req, res) {
 
             // email was not found, continue process
             db.insert(
+                // merge base elements with request body
+                Object.assign(
                 {
                     statusCode: 'PVN', // Pending Verification
-                    firstName: req.body['firstName'],
-                    lastName: req.body['lastName'],
-                    emailAddress: req.body['emailAddress'],
                     phoneVerified: 0, // false
-                    emailVerified: 0 //false
-                }
+                    emailVerified: 0, //false
+                    createdDatetime: dayjs().utc().format('YYYY-MM-DD HH:mm:ss')
+                },
+                req.body)
             ).into('Customer').then(function(result) {
                 let customerID = result[0];
         
