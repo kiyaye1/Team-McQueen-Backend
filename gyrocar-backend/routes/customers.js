@@ -5,10 +5,6 @@ const dayjs = require('dayjs');
 var utc = require('dayjs/plugin/utc')
 dayjs.extend(utc)
 
-const dayjs = require('dayjs');
-var utc = require('dayjs/plugin/utc')
-dayjs.extend(utc)
-
 const db = require('../database');
 
 const customerObjectFields = [
@@ -16,6 +12,7 @@ const customerObjectFields = [
     "username", "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
     "driversLicenseNum", "driversLicenseState"
 ]
+
 
 router.get('/:customer_id', function(req, res) {
     customerID = req.params['customer_id'];
@@ -59,7 +56,7 @@ router.post('/', function(req, res) {
         res.status(400).send("Missing required fields: " + missingFields.join(', '));
         return
     }
-    
+        
     // check to make sure all elements in
     // the request body are understood
     invalidFields = []
@@ -107,6 +104,47 @@ router.post('/', function(req, res) {
             });
     })
 })
+
+router.patch('/:customer_id', function(req, res) {
+    let customerID = req.params['customer_id'];
+
+    // check to make sure all elements in
+    // the request body are understood
+    invalidFields = []
+    Object.keys(req.body).forEach(field => {
+        if (!customerObjectFields.includes(field)) {
+            invalidFields.push(field);
+        }
+    });
+    if (invalidFields.length > 0) {
+        res.status(400).send("The following fields are invalid for this request: " + invalidFields.join(', ')
+            + "\nNo data was changed.");
+        return
+    }
+
+    if (req.body['customerID']) delete req.body['customerID'] // don't allow editing the customerID
+
+    // if they are trying to edit the email address
+    // the candidate email address needs to be checked for uniqueness
+    let emailIsUsed = false;
+    if (req.body['emailAddress']) {
+        db.select('emailAddress').from('Customer')
+            .whereNot('customerID', customerID).andWhere('emailAddress', req.body['emailAddress']).then(
+                function(result) {
+                    if (result.length > 0) {
+                        // email address is already being used
+                        res.status(400).send("Email address " + req.body['emailAddress'] + " is already in use");
+                        return
+                    }
+                    
+                    db('Customer').update(req.body).where('customerID', customerID)
+                        .then(function(result) {
+                            res.status(200).send("Updated successfully");
+                        })
+                }
+            )
+    }
+});
 
 
 module.exports = router;
