@@ -5,6 +5,10 @@ const dayjs = require('dayjs');
 var utc = require('dayjs/plugin/utc')
 dayjs.extend(utc)
 
+const dayjs = require('dayjs');
+var utc = require('dayjs/plugin/utc')
+dayjs.extend(utc)
+
 const db = require('../database');
 
 const customerObjectFields = [
