@@ -36,9 +36,13 @@ router.get('/:customer_id', function(req, res) {
                     delete customer['statusCode'];
 
                     res.json(customer);
+                }).catch(function(err) {
+                    return res.sendStatus(500);
                 });
         }
-    )
+    ).catch(function(err) {
+        return res.sendStatus(500);
+    });
 });
 
 router.post('/', function(req, res) {
@@ -100,9 +104,13 @@ router.post('/', function(req, res) {
                     .where('customerID', customerID)
                     .then(function(result) {
                         res.send(result);
-                    })
+                    }).catch(function(err) {
+                        return res.sendStatus(500);
+                    });
             });
-    })
+    }).catch(function(err) {
+        res.sendStatus(500);
+    });
 })
 
 router.patch('/:customer_id', function(req, res) {
@@ -140,9 +148,13 @@ router.patch('/:customer_id', function(req, res) {
                     db('Customer').update(req.body).where('customerID', customerID)
                         .then(function(result) {
                             res.status(200).send("Updated successfully");
-                        })
+                        }).catch(function(err) {
+                            return res.sendStatus(500);
+                        });
                 }
-            )
+            ).catch(function(err) {
+                return res.sendStatus(500);
+            });
     }
 });
 
