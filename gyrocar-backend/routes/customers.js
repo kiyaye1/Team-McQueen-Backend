@@ -131,6 +131,9 @@ router.patch('/:customer_id', function(req, res) {
     }
 
     if (req.body['customerID']) delete req.body['customerID'] // don't allow editing the customerID
+    if (req.body['phoneVerified']) delete req.body['phoneVerified'] // don't allow editing the phoneVerified field
+    if (req.body['emailVerified']) delete req.body['emailVerified'] // don't allow editing the emailVerified field
+
 
     // if they are trying to edit the email address
     // the candidate email address needs to be checked for uniqueness
@@ -144,18 +147,33 @@ router.patch('/:customer_id', function(req, res) {
                         res.status(400).send("Email address " + req.body['emailAddress'] + " is already in use");
                         return
                     }
-                    
-                    db('Customer').update(req.body).where('customerID', customerID)
-                        .then(function(result) {
-                            res.status(200).send("Updated successfully");
-                        }).catch(function(err) {
-                            return res.sendStatus(500);
-                        });
                 }
             ).catch(function(err) {
                 return res.sendStatus(500);
             });
     }
+
+    // update all the elements given
+    db('Customer').update(req.body).where('customerID', customerID)
+        .then(function(result) {
+            res.status(200).send("Updated successfully");
+        }).catch(function(err) {
+            return res.sendStatus(500);
+        });
+});
+
+router.delete('/:customer_id', function(req, res) {
+    let customerID = req.params['customer_id'];
+    if (customerID.length == 0) {
+        res.sendStatus(400);
+        return;
+    }
+
+    db('Customer').delete().from('Customer').where('customerID', customerID).then(function(result) {
+        res.status(200).send("Deleted successfully");
+    }).catch(function(err) {
+        return res.sendStatus(500);
+    });
 });
 
 
