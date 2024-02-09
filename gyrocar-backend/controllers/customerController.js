@@ -12,7 +12,7 @@ const customerObjectFields = [
 ]
 
 
-function getCustomers(req, res) {
+function getCustomer(req, res) {
     customerID = req.params['customer_id'];
 
     db.select(customerObjectFields).from('Customer')
@@ -41,6 +41,32 @@ function getCustomers(req, res) {
     ).catch(function(err) {
         return res.sendStatus(500);
     });
+}
+
+function getCustomers(req, res) {
+    fields = customerObjectFields;
+    fields[fields.indexOf('statusCode')] = 'CustomerStatus.statusCode';
+    fields = fields.concat(['CustomerStatus.statusCode', 'shortDescription', 'longDescription']);
+    db.select(fields).from('Customer')
+        .leftJoin('CustomerStatus', {'Customer.statusCode': 'CustomerStatus.statusCode'})
+        .then(function(result) {
+            result = Object.assign([], result);
+            result.map((x) => {
+                x['status'] = {
+                    'statusCode': x['statusCode'],
+                    'shortDescription': x['shortDescription'],
+                    'longDescription': x['longDescription']
+                }
+                delete x['statusCode'];
+                delete x['shortDescription'];
+                delete x['longDescription'];
+            });
+
+            console.log(result);
+            res.json(result);
+        }).catch(function(err) {
+            res.sendStatus(500);
+        });
 }
 
 function createCustomer(req, res) {
@@ -175,4 +201,4 @@ function deleteCustomer(req, res) {
     });
 }
 
-module.exports = {getCustomers, createCustomer, updateCustomer, deleteCustomer};
+module.exports = {getCustomer, getCustomers, createCustomer, updateCustomer, deleteCustomer};
