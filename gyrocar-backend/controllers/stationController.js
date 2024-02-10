@@ -57,11 +57,12 @@ function getSingleStation(req, res) {
 }
 
 function getStations(req, res) {
-    const baseStmt = db.select(stationFields).from("Station");
+    let query = db.select(stationFields).from("Station");
 
     const coordinates = req.body["coordinates"];
 
     // if coordinates have been specified
+    // use one of the filters
     if (coordinates) {
         if (!coordinates["lat"] && !coordinates["lng"]) {
             return res.status(400).send("Incoorect coordinate format");
@@ -83,38 +84,64 @@ function getStations(req, res) {
         }
 
         let radius = req.body["radius"];
-        if (!radius && validator.isNumeric(radius)) {
-            return res.status.send(
-                "Bad request: No radius specified in request body"
-            );
+        let numClosestStations = req.body["topN"];
+        // if neither a radius nor a number of closest stations
+        // is supplied then the request cannot continue
+        if (!radius && !numClosestStations) {
+            return res.status(400).send("Bad Request: coordinates were supplied \
+                but no query specifier");
         }
 
-        radius_meters = Number(radius) * METERS_IN_MILE;
+        // if a radius has been specified
+        // validate it and it to the query
+        if (radius) {
+            if (typeof radius != "number" && !validator.isNumeric(radius)) {
+                return res.status(400).send("Bad Request: invalid radius given, it should a numerical value");
+            }
+            radius = Number(radius);        
 
-        return baseStmt
-            .whereRaw("ST_Distance_Sphere(coordinates, point(?, ?)) < ?", [
-                lat,
-                lng,
-                radius_meters,
-            ])
-            .then(function (result) {
+            radius_meters = Number(radius) * METERS_IN_MILE;
+
+            query = query.whereRaw("ST_Distance_Sphere(coordinates, point(?, ?)) < ?", [lat, lng, radius_meters]);
+        }
+
+        // if a top number of closest stations has been specified
+        // add it to the query
+        if (numClosestStations) {
+            if (typeof numClosestStations != "number" && !validator.isNumeric(numClosestStations)) {
+                return res.status(400).send("Bad Request: invalid topN given, it should a numerical value");
+            }
+            numClosestStations = Number(numClosestStations);
+
+            // limit the number of rows output
+            // it will be ordered by distance before the limit
+            // is applied so this will function properly
+            query = query.limit(numClosestStations);
+        }
+
+        // sort the output by closest station first
+        // and get the distance in miles to that station
+        query.select(db.raw('ST_Distance_Sphere(coordinates, point(?, ?)) / ? AS \'distanceInMiles\'', [lat, lng, METERS_IN_MILE]))
+            .orderByRaw("ST_Distance_Sphere(coordinates, point(?, ?)) ASC", [lat, lng]).then(function (result) {
                 result = Object.assign([], result).map(renameCoordinates);
-                res.json(result);
+                return res.json(result);
             })
             .catch(function (err) {
-                res.status(500).send();
+                console.log(query.toSQL());
+                return res.status(500).send("A server side error occurred");
             });
     }
-
-    // if no filter is applied, get all stations
-    baseStmt
-        .then(function (result) {
-            result = Object.assign([], result).map(renameCoordinates);
-            res.json(result);
-        })
-        .catch(function (err) {
-            res.status(500).send();
-        });
+    else {
+        // if no filter is applied, get all stations
+        query
+            .then(function (result) {
+                result = Object.assign([], result).map(renameCoordinates);
+                return res.json(result);
+            })
+            .catch(function (err) {
+                return res.status(500).send("A server side error occurred");
+            });
+    }
 }
 
 module.exports = { getSingleStation, getStations };
