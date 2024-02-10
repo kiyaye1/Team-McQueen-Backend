@@ -6,6 +6,7 @@ const validator = require('validator');
 
 const db = require('../database');
 
+const METERS_IN_MILE = 1609.344;
 
 const stationFields = ['stationID', 'country', 'state', 'county', 'city', 'zip', 'coordinates', 'streetAddress'];
 
@@ -46,4 +47,57 @@ function getSingleStation(req, res) {
         });
 }
 
-module.exports = {getSingleStation};
+function getStations(req, res) {
+    
+    const baseStmt = db.select(stationFields).from('Station');
+    
+    const coordinates = req.body['coordinates'];
+    
+
+    // if coordinates have been specified
+    if (coordinates) {
+        if (!coordinates['lat'] && !coordinates['lng']) {
+            return res.status(400).send("Incoorect coordinate format");
+        }
+        let lat = req.body['coordinates']['lat'];
+        let lng = req.body['coordinates']['lng'];
+
+        // if the latitude/longitude values are not numeric values
+        // try to convert them from strings to numbers
+        if (typeof lat != "number") {
+            if (validator.isNumeric(lat)) {
+                lat = Number(lat);
+            }
+        }
+        if (typeof lng != "number") {
+            if (validator.isNumeric(lng)) {
+                lng = Number(lng);
+            }
+        } 
+
+        let radius = req.body['radius'];
+        if (!radius && validator.isNumeric(radius)) {
+            return res.status.send("Bad request: No radius specified in request body");
+        }    
+
+        radius_meters = Number(radius) * METERS_IN_MILE;
+
+
+        return baseStmt.whereRaw('ST_Distance_Sphere(coordinates, point(?, ?)) < ?', [lat, lng, radius_meters])
+            .then(function(result) {
+                res.json(result);
+            }).catch(function(err) {
+                res.status(500).send();
+            });
+    }
+
+    // if no filter is applied, get all stations
+    baseStmt.then(function(result) {
+        res.json(result);
+    }).catch(function(err) {
+        res.status(500).send();
+    });
+
+}
+
+module.exports = {getSingleStation, getStations};
