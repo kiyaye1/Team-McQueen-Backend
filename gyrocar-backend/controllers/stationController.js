@@ -29,11 +29,11 @@ function renameCoordinates(obj) {
 function getSingleStation(req, res) {
     const station_id = req.params["station_id"];
     if (!station_id) {
-        res.status(400).send("Bad location_id requested");
+        res.status(400).send("Bad station_id requested");
     }
 
     if (!validator.isInt(station_id)) {
-        res.status(400).send("Bad location_id requested");
+        res.status(400).send("Bad station_id requested");
     }
 
     db.select(stationFields)
@@ -144,4 +144,88 @@ function getStations(req, res) {
     }
 }
 
-module.exports = { getSingleStation, getStations };
+function updateStation(req, res) {
+    let query = db('Station');
+    let station_id = req.params["station_id"];
+
+    // ensure station_id is present
+    if (!station_id) {
+        res.status(400).send("Bad station_id requested");
+    }
+
+    // check if value can be converted to number
+    if (!validator.isInt(station_id)) {
+        res.status(400).send("Bad station_id requested");
+    }
+    station_id = Number(station_id);
+
+    // ensure the station record is exists in the db
+    // before proceeding
+    let stationFound = db.select('stationID').from('Station').where('stationID', station_id)
+                        .then(function(result) {
+                            if (result.length == 1) {
+                                return true;
+                            }
+                            else {
+                                res.status(404).send(`No station was found by the id: ${station_id}`);
+                                return false;
+                            }
+                        }).catch(function(err) {
+                            res.status(500).send("Unexpeted server side error occurred");
+                        });
+    if (stationFound == false) {
+        return; // don't continue if station can't be found
+    }
+
+    // since station_id is valid, add it to the query
+    query = query.where('stationID', station_id);
+    
+    // check to make sure all elements in
+    // the request body are understood
+    invalidFields = []
+    Object.keys(req.body).forEach(field => {
+        if (!stationFields.includes(field)) {
+            invalidFields.push(field);
+        }
+    });
+    if (invalidFields.length > 0) {
+        return res.status(400).send("The following fields are invalid for this request: " + invalidFields.join(', ')
+            + "\nNo data was changed.");
+    }
+
+    if (req.body['station_id']) delete req.body['stationID']; // editing the station_id is not allowed
+
+    // put the coordinates in the proper format for MySQL
+    if (req.body['coordinates']) {
+        if (!req.body['coordinates']['lat'] || !req.body['coordinates']['lat']) {
+            return res.status(400).send("Bad request: invalid format for coordinates. No data was changed");
+        }
+        if (typeof req.body['coordinates']['lat'] == "string") {
+                if(!validator.isNumeric(req.body['coordinates']['lat'])) {
+                    return res.status(400).send("Bad request: Latitude is incorrectly formatted. It must be a number");
+            }
+        }
+        if (typeof req.body['coordinates']['lng'] == "string") {
+            if (!validator.isNumeric(req.body['coordinates']['lng'])) {
+                return res.status(400).send("Bad request: longitude is incorrectly formatted. It must be a number");
+            }
+        }
+        let lat = Number(req.body['coordinates']['lat']);
+        let lng = Number(req.body['coordinates']['lng']);
+
+        query.update({coordinates: db.raw('POINT(?,?)', [lat, lng])}); // add the new coordinate data to the query
+        delete req.body['coordinates']; // remove original data from request body
+    }
+
+    // use the fields in the request body to
+    // perform the update
+    query.update(req.body)
+        .then(function(result) {
+            return res.send("Updated successfully");
+        }).catch(function(err) {
+            console.log(err);
+            return res.status(500).send("Unexpected server side error");
+        });
+}
+
+module.exports = { getSingleStation, getStations, updateStation };
