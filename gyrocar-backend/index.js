@@ -8,10 +8,11 @@ app.use(express.json())
 
 // Defining route location
 const customersRoute = require('./routes/customers');
+const stationsRoute = require('./routes/stations');
 
 // Bind requests to route
 app.use('/customers', customersRoute);
-
+app.use('/stations', stationsRoute);
 
 app.get("/", function(request, response){
     // This is only a test
