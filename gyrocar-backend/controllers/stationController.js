@@ -26,7 +26,7 @@ function renameCoordinates(obj) {
     return obj;
 }
 
-function getSingleStation(req, res) {
+async function getSingleStation(req, res) {
     const station_id = req.params["station_id"];
     if (!station_id) {
         res.status(400).send("Bad station_id requested");
@@ -56,7 +56,7 @@ function getSingleStation(req, res) {
         });
 }
 
-function getStations(req, res) {
+async function getStations(req, res) {
     let query = db.select(stationFields).from("Station");
 
     const coordinates = req.body["coordinates"];
@@ -144,7 +144,7 @@ function getStations(req, res) {
     }
 }
 
-function updateStation(req, res) {
+async function updateStation(req, res) {
     let query = db('Station');
     let station_id = req.params["station_id"];
 
@@ -161,7 +161,8 @@ function updateStation(req, res) {
 
     // ensure the station record is exists in the db
     // before proceeding
-    let stationFound = db.select('stationID').from('Station').where('stationID', station_id)
+    let stationFound = false;
+    stationFound = await db.select('stationID').from('Station').where('stationID', station_id)
                         .then(function(result) {
                             if (result.length == 1) {
                                 return true;
@@ -213,8 +214,7 @@ function updateStation(req, res) {
         let lat = Number(req.body['coordinates']['lat']);
         let lng = Number(req.body['coordinates']['lng']);
 
-        query.update({coordinates: db.raw('POINT(?,?)', [lat, lng])}); // add the new coordinate data to the query
-        delete req.body['coordinates']; // remove original data from request body
+        req.body['coordinates'] = db.raw('POINT(?,?)', [lat, lng]); // add the new coordinate data to the query
     }
 
     // use the fields in the request body to
@@ -228,7 +228,7 @@ function updateStation(req, res) {
         });
 }
 
-function deleteStation(req, res) {
+async function deleteStation(req, res) {
     let station_id = req.params["station_id"];
 
     // ensure station_id is present
@@ -245,25 +245,31 @@ function deleteStation(req, res) {
     // attempt to select the stationID to make
     // sure that it exists. It will exit 
     // if it doesn't find anything
-    if (!db.select('stationID').from('Station').where('stationID', station_id).then(function (result) {
-        if (result.length == 0) {
-            res.status(404).send(`Station with id ${station_id} was not found`);
-            return false;
-        }
-        else {
-            return true;
-        }
-    })) {
+    let stationFound = false;
+    stationFound = await db.select('stationID').from('Station').where('stationID', station_id)
+        .then(function (result) {
+            if (result.length == 0) {
+                res.status(404).send(`Station with id ${station_id} was not found`);
+                return false;
+            }
+            else {
+                return true;
+            }
+        }).catch(function (err) {
+            return res.status(500).send("Unexpected server side error occurred");
+        });
+
+    // don't continue if the 
+    if (stationFound == false) {
         return;
     }
 
     db.delete().from('Station').where('stationID', station_id).then(function (result) {
-        console.log(result);
         res.status(200).send("Station deleted successfully");
     });
 }
 
-function createStation(req, res) {
+async function createStation(req, res) {
     let query = db.into('Station');
 
     let coordinates = req.body['coordinates'];
@@ -301,7 +307,6 @@ function createStation(req, res) {
 
     query.insert(req.body).then(function (result) {
         let stationID = result[0]; // the resulting auto incremented station ID
-        console.log(result);
         db.select(stationFields).from('Station').where('stationID', stationID) // retrieve the data back and return to client
             .then(function (result) {
                 renameCoordinates(result[0]);
