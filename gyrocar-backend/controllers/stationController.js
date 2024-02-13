@@ -228,4 +228,92 @@ function updateStation(req, res) {
         });
 }
 
-module.exports = { getSingleStation, getStations, updateStation };
+function deleteStation(req, res) {
+    let station_id = req.params["station_id"];
+
+    // ensure station_id is present
+    if (!station_id) {
+        res.status(400).send("Bad station_id requested");
+    }
+
+    // check if value can be converted to number 
+    if (!validator.isInt(station_id)) {
+        res.status(400).send("Bad station_id requested");
+    }
+    station_id = Number(station_id);
+
+    // attempt to select the stationID to make
+    // sure that it exists. It will exit 
+    // if it doesn't find anything
+    if (!db.select('stationID').from('Station').where('stationID', station_id).then(function (result) {
+        if (result.length == 0) {
+            res.status(404).send(`Station with id ${station_id} was not found`);
+            return false;
+        }
+        else {
+            return true;
+        }
+    })) {
+        return;
+    }
+
+    db.delete().from('Station').where('stationID', station_id).then(function (result) {
+        console.log(result);
+        res.status(200).send("Station deleted successfully");
+    });
+}
+
+function createStation(req, res) {
+    let query = db.into('Station');
+
+    let coordinates = req.body['coordinates'];
+    if (coordinates) {
+        if (!coordinates['lat'] || !coordinates['lng']) {
+            return res.status(400).send("Bad request: latitude and longitude values are not present or incorrecly named");
+        }
+
+        if (typeof coordinates['lat'] == "string" && !validator.isNumeric(coordinates['lat'])) {
+            return res.staus(400).send("Bad request: latitude value is invalid. It should be a numerical value");
+        }
+
+        if (typeof coordinates['lng'] == "string" && !validator.isNumeric(coordinates['lng'])) {
+            return res.staus(400).send("Bad request: longitude value is invalid. It should be a numerical value");
+        }
+
+        let lat = Number(coordinates['lat']);
+        let lng = Number(coordinates['lng']);
+
+        req.body['coordinates'] = db.raw('POINT(?,?)', [lat, lng]);
+    }
+
+    // check to make sure all elements in
+    // the request body are understood
+    invalidFields = []
+    Object.keys(req.body).forEach(field => {
+        if (!stationFields.includes(field)) {
+            invalidFields.push(field);
+        }
+    });
+    if (invalidFields.length > 0) {
+        return res.status(400).send("The following fields are invalid for this request: " + invalidFields.join(', ')
+            + "\nNo data was changed.");
+    }
+
+    query.insert(req.body).then(function (result) {
+        let stationID = result[0]; // the resulting auto incremented station ID
+        console.log(result);
+        db.select(stationFields).from('Station').where('stationID', stationID) // retrieve the data back and return to client
+            .then(function (result) {
+                renameCoordinates(result[0]);
+                return res.json(result[0]);
+            }).catch(function (err) {
+                return res.status(500).send("Unexpected server side error occurred");
+            });
+    }).catch(function (err) {
+        return res.status(500).send("Unexpected server side error");
+    });
+}
+
+
+
+module.exports = { getSingleStation, getStations, updateStation, deleteStation, createStation };
