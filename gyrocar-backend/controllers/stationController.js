@@ -27,7 +27,7 @@ function renameCoordinates(obj) {
 }
 
 async function getSingleStation(req, res) {
-    const station_id = req.params["station_id"];
+    let station_id = req.params["station_id"];
     if (!station_id) {
         res.status(400).send("Bad station_id requested");
     }
@@ -35,6 +35,7 @@ async function getSingleStation(req, res) {
     if (!validator.isInt(station_id)) {
         res.status(400).send("Bad station_id requested");
     }
+    station_id = Number(station_id);
 
     db.select(stationFields)
         .from("Station")
@@ -65,19 +66,19 @@ async function getStations(req, res) {
     // use one of the filters
     if (coordinates) {
         if (!coordinates["lat"] && !coordinates["lng"]) {
-            return res.status(400).send("Incoorect coordinate format");
+            return res.status(400).send("Incorrect coordinate format");
         }
         let lat = req.body["coordinates"]["lat"];
         let lng = req.body["coordinates"]["lng"];
 
         // if the latitude/longitude values are not numeric values
         // try to convert them from strings to numbers
-        if (typeof lat != "number") {
+        if (typeof lat == "string") {
             if (validator.isNumeric(lat)) {
                 lat = Number(lat);
             }
         }
-        if (typeof lng != "number") {
+        if (typeof lng == "string") {
             if (validator.isNumeric(lng)) {
                 lng = Number(lng);
             }
@@ -93,7 +94,7 @@ async function getStations(req, res) {
         }
 
         // if a radius has been specified
-        // validate it and it to the query
+        // validate it and add it to the query
         if (radius) {
             if (typeof radius != "number" && !validator.isNumeric(radius)) {
                 return res.status(400).send("Bad Request: invalid radius given, it should a numerical value");
@@ -102,7 +103,7 @@ async function getStations(req, res) {
 
             radius_meters = Number(radius) * METERS_IN_MILE;
 
-            query = query.whereRaw("ST_Distance_Sphere(coordinates, point(?, ?)) < ?", [lat, lng, radius_meters]);
+            query = query.whereRaw("ST_Distance_Sphere(coordinates, point(?, ?)) <= ?", [lat, lng, radius_meters]);
         }
 
         // if a top number of closest stations has been specified
@@ -198,7 +199,7 @@ async function updateStation(req, res) {
 
     // put the coordinates in the proper format for MySQL
     if (req.body['coordinates']) {
-        if (!req.body['coordinates']['lat'] || !req.body['coordinates']['lat']) {
+        if (!req.body['coordinates']['lat'] || !req.body['coordinates']['lng']) {
             return res.status(400).send("Bad request: invalid format for coordinates. No data was changed");
         }
         if (typeof req.body['coordinates']['lat'] == "string") {
@@ -266,11 +267,13 @@ async function deleteStation(req, res) {
 
     db.delete().from('Station').where('stationID', station_id).then(function (result) {
         res.status(200).send("Station deleted successfully");
+    }).catch(function (err) {
+        return res.status(500).send("Unexpected server side error occurred");
     });
 }
 
 async function createStation(req, res) {
-    let query = db.into('Station');
+    let query = db.into('Station'); // set to table to insert into
 
     let coordinates = req.body['coordinates'];
     if (coordinates) {
@@ -318,7 +321,5 @@ async function createStation(req, res) {
         return res.status(500).send("Unexpected server side error");
     });
 }
-
-
 
 module.exports = { getSingleStation, getStations, updateStation, deleteStation, createStation };
