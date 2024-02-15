@@ -1,9 +1,22 @@
 const db = require('../database');
 const validator = require("validator");
 
+const dayjs = require('dayjs');
+var utc = require('dayjs/plugin/utc')
+dayjs.extend(utc)
+
+const customerFields = [
+    "customerID", "firstName", "lastName", "middleInitial", "suffix",
+    "username", "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
+    "driversLicenseNum", "driversLicenseState", "CustomerStatus.statusCode",
+    "CustomerStatus.shortDescription", "CustomerStatus.longDescription"
+]
 
 const reservationFields = ["reservationID", "startStationID", "endStationID", "carID", "scheduledStartDatetime",
     "customerID", "scheduledEndDatetime", "actualStartDatetime", "actualEndDatetime", "isComplete"];
+
+const createReservationFields = ["startStationID", "endStationID", "carID", "scheduledStartDatetime",
+    "customerID", "scheduledEndDatetime"];
 
 // full list of fields needed for getting all reservation
 // information with full column names with tables becuase
@@ -23,6 +36,8 @@ const joinedReservationFields = [
     "CarStatus.shortDescription AS CarStatus.shortDescription", "CarStatus.longDescription AS CarStatus.longDescription",
 ];
 
+// base query that contains all of the
+// joined tables necessary
 let baseFullQuery = db.select(joinedReservationFields).from('CarReservation')
     .leftJoin('Customer', 'Customer.customerID', 'CarReservation.customerID')
     .leftJoin('CustomerStatus', 'CustomerStatus.statusCode', 'Customer.statusCode')
@@ -156,7 +171,133 @@ async function getReservations(req, res) {
         res.status(500).send("Unexpected server side error occurred");
     }
 }
-async function createReservation(req, res) { }
+async function createReservation(req, res) {
+    // look for fields that need to be included
+    // and output if any are not found
+    emptyFields = []
+    createReservationFields.forEach(function (field) {
+        if (!req.body[field]) {
+            emptyFields.push(field);
+        }
+    })
+    if (emptyFields.length > 0) {
+        return res.status(400).send(`The following fields are required and were not included in the request body: ${emptyFields.join(', ')}`);
+    }
+
+    // check to make sure all elements in
+    // the request body are understood
+    invalidFields = []
+    Object.keys(req.body).forEach(field => {
+        if (!createReservationFields.includes(field)) {
+            invalidFields.push(field);
+        }
+    });
+    if (invalidFields.length > 0) {
+        res.status(400).send("The following fields are invalid for this request: " + invalidFields.join(', '));
+        return
+    }
+
+    // validate the incoming data
+    let scheduledStartDatetime = dayjs(req.body["scheduledStartDatetime"]);
+    if (!scheduledStartDatetime.isValid()) {
+        return res.status(400).send("Bad Request: The scheduledStartDatetime is invalid. It must be an ISO 8601 formatted string");
+    }
+
+    let scheduledEndDatetime = dayjs(req.body["scheduledEndDatetime"]);
+    if (!scheduledEndDatetime.isValid()) {
+        return res.status(400).send("Bad Request: The scheduledEndDatetime is invalid. It must be an ISO 8601 formatted string");
+    }
+
+    if (typeof req.body["customerID"] == "string" && !validator.isInt(req.body["customerID"])) {
+        return res.status(400).send("Bad Request: customerID is invalid, it must be an int");
+    }
+    let customerID = Number(req.body["customerID"]);
+
+    if (typeof req.body["startStationID"] == "string" && !validator.isNumeric(req.body["startStationID"])) {
+        return res.status(400).send("Bad Request: startStationID is invalid, it must be an int");
+    }
+    let startStationID = Number(req.body["startStationID"]);
+
+    if (typeof req.body["endStationID"] == "string" && !validator.isNumeric(req.body["endStationID"])) {
+        return res.status(400).send("Bad Request: endStationID is invalid, it must be an int");
+    }
+    let endStationID = Number(req.body["endStationID"]);
+
+    if (typeof req.body["carID"] == "string" && !validator.isNumeric(req.body["carID"])) {
+        return res.status(400).send("Bad Request: carID is invalid, it must be an int");
+    }
+    let carID = Number(req.body["carID"]);
+
+    // Check to make sure the customer, stations, and car
+    // actually exist in the database so that there 
+    // aren't any foreign key constraint issues
+    fieldsNotFound = [];
+    let customer = db.select(customerFields).from('Customer')
+        .leftJoin('CustomerStatus', 'CustomerStatus.statusCode', 'Customer.statusCode')
+        .where('customerID', customerID)
+        .then(function (result) {
+            if (result.length == 0) {
+                fieldsNotFound.push(`customerID: ${startStationID}`);
+            };
+            return result[0];
+        });
+
+    let startStation = db.select('stationID').from('Station').where('stationID', startStationID)
+        .then(function (result) {
+            if (result.length == 0) {
+                fieldsNotFound.push(`startStationID: ${startStationID}`);
+            }
+            return result[0];
+        })
+
+    let endStation;
+    if (startStationID != endStationID) {
+        endStation = db.select('stationID').from('Station').where('stationID', endStationID)
+            .then(function (result) {
+                if (result.length == 0) {
+                    fieldsNotFound.push(`endStationID: ${endStationID}`);
+                }
+                return result[0];
+            })
+    }
+
+    let car = db.select('carID').from('Car').where('carID', carID)
+        .then(function (result) {
+            if (result.length == 0) {
+                fieldsNotFound.push(`carID: ${carID}`);
+            }
+            return result[0];
+        })
+
+    let results = await Promise.all([customer, startStation, endStation, car]);
+    customer = results[0];
+    startStation = results[1];
+    endStation = results[2];
+    car = results[3];
+
+    if (fieldsNotFound.length > 0) {
+        return res.status(400).send(`Bad Request: The following fields were not found in the database: ${fieldsNotFound.join(', ')}`);
+    }
+
+    // All items exist, we can continue with validation
+    // Check to make sure customer is allowed to reserve.
+    // The customer statusCode needs to be RDY for Ready
+    if (customer["statusCode"] != "RDY") {
+        return res.status(400).send(`Customer state of ${customer["statusCode"]} does not allow for creating reservations. \
+                                    The state needs to be 'RDY'`);
+    }
+
+    // check that the customer's phone number and email has been verified
+    if (customer["phoneVerified"] == 0) {
+        return res.status(400).send("Customer's phone has not been verified and needs to be verified before reservations can be made");
+    }
+    if (customer["emailVerified"] == 0) {
+        return res.status(400).send("Customer's email has not been verified and needs to be verified before reservations can be made");
+    }
+
+
+    res.send();
+}
 async function updateReservation(req, res) { }
 async function deleteReservation(req, res) { }
 
