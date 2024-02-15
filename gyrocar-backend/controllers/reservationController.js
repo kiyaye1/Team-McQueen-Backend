@@ -9,51 +9,18 @@ const reservationFields = ["reservationID", "startStationID", "endStationID", "c
 // information with full column names with tables becuase
 // of column name overlap between tables
 const joinedReservationFields = [
-    "reservationID",
-    "scheduledStartDatetime",
-    "scheduledEndDatetime",
-    "actualStartDatetime",
-    "actualEndDatetime",
-    "isComplete",
-    "StartStation.stationID AS StartStation.stationID",
-    "StartStation.country AS StartStation.country",
-    "StartStation.state AS StartStation.state",
-    "StartStation.county AS StartStation.county",
-    "StartStation.city AS StartStation.city",
-    "StartStation.zip AS StartStation.zip",
-    "StartStation.coordinates AS StartStation.coordinates",
-    "StartStation.streetAddress AS StartStation.streetAddress",
-    "EndStation.stationID AS EndStation.stationID",
-    "EndStation.country AS EndStation.country",
-    "EndStation.state AS EndStation.state",
-    "EndStation.county AS EndStation.county",
-    "EndStation.city AS EndStation.city",
-    "EndStation.zip AS EndStation.zip",
-    "EndStation.coordinates AS EndStation.coordinates",
-    "EndStation.streetAddress AS EndStation.streetAddress",
-    "Customer.customerID AS Customer.customerID",
-    "Customer.firstName AS Customer.firstName",
-    "Customer.lastName AS Customer.lastName",
-    "Customer.middleInitial AS Customer.middleInitial",
-    "Customer.suffix AS Customer.suffix",
-    "Customer.username AS Customer.username",
-    "Customer.createdDatetime AS Customer.createdDatetime",
-    "Customer.phoneNumber AS Customer.phoneNumber",
-    "Customer.emailAddress AS Customer.emailAddress",
-    "Customer.phoneVerified AS Customer.phoneVerified",
-    "Customer.emailVerified AS Customer.emailVerified",
-    "Car.CarID AS Car.CarID",
-    "Car.installDatetime AS Car.installDatetime",
-    "Car.statusCode AS Car.statusCode",
-    "CustomerStatus.statusCode AS CustomerStatus.statusCode",
-    "CustomerStatus.shortDescription AS CustomerStatus.shortDescription",
-    "CustomerStatus.longDescription AS CustomerStatus.longDescription",
-    "CarModel.carModelID AS CarModel.carModelID",
-    "CarModel.carModelName AS CarModel.carModelName",
-    "CarModel.description AS CarModel.description",
-    "CarStatus.statusCode AS CarStatus.statusCode",
-    "CarStatus.shortDescription AS CarStatus.shortDescription",
-    "CarStatus.longDescription AS CarStatus.longDescription",
+    "reservationID", "scheduledStartDatetime", "scheduledEndDatetime", "actualStartDatetime", "actualEndDatetime", "isComplete", "StartStation.stationID AS StartStation.stationID",
+    "StartStation.country AS StartStation.country", "StartStation.state AS StartStation.state", "StartStation.county AS StartStation.county", "StartStation.city AS StartStation.city", 
+    "StartStation.zip AS StartStation.zip", "StartStation.coordinates AS StartStation.coordinates", "StartStation.streetAddress AS StartStation.streetAddress",
+    "EndStation.stationID AS EndStation.stationID", "EndStation.country AS EndStation.country", "EndStation.state AS EndStation.state", "EndStation.county AS EndStation.county",
+    "EndStation.city AS EndStation.city", "EndStation.zip AS EndStation.zip", "EndStation.coordinates AS EndStation.coordinates", "EndStation.streetAddress AS EndStation.streetAddress",
+    "Customer.customerID AS Customer.customerID", "Customer.firstName AS Customer.firstName", "Customer.lastName AS Customer.lastName", "Customer.middleInitial AS Customer.middleInitial",
+    "Customer.suffix AS Customer.suffix", "Customer.username AS Customer.username", "Customer.createdDatetime AS Customer.createdDatetime", "Customer.phoneNumber AS Customer.phoneNumber",
+    "Customer.emailAddress AS Customer.emailAddress", "Customer.phoneVerified AS Customer.phoneVerified", "Customer.emailVerified AS Customer.emailVerified", "Car.CarID AS Car.CarID",
+    "Car.installDatetime AS Car.installDatetime", "Car.statusCode AS Car.statusCode", "CustomerStatus.statusCode AS CustomerStatus.statusCode", 
+    "CustomerStatus.shortDescription AS CustomerStatus.shortDescription", "CustomerStatus.longDescription AS CustomerStatus.longDescription", "CarModel.carModelID AS CarModel.carModelID",
+    "CarModel.carModelName AS CarModel.carModelName", "CarModel.description AS CarModel.description", "CarStatus.statusCode AS CarStatus.statusCode",
+    "CarStatus.shortDescription AS CarStatus.shortDescription", "CarStatus.longDescription AS CarStatus.longDescription",
 ];
 
 let baseFullQuery = db.select(joinedReservationFields).from('CarReservation')
@@ -149,7 +116,7 @@ async function getReservation(req, res) {
     }
     const reservation_id = Number(req.params["reservation_id"]);
 
-    // check for reservation in db, 404
+    // check for reservation in db
     let reservationExists = await db.select('reservationID').from('CarReservation')
         .where('reservationID', reservation_id)
         .then(function (result) {
@@ -160,11 +127,15 @@ async function getReservation(req, res) {
         }).catch(function (err) {
             return res.status(500).send("Unexpected server side error occurred");
         });
+    // bail out if reservation is not found
     if (reservationExists != true) {
         return res.status(404).send(`No reservation was found by id ${reservation_id}`);
     }
 
     try {
+        // use base query and clear the where clause 
+        // from when it could have been applied in a 
+        // different function
         let result = await baseFullQuery.where('reservationID', reservation_id);
         result = result[0];
         res.json(transformReservation(result));
@@ -174,7 +145,17 @@ async function getReservation(req, res) {
     }
 }
 
-async function getReservations(req, res) { }
+async function getReservations(req, res) {
+    try {
+        let result = await baseFullQuery.clear("where"); // clear
+
+        transformed = result.map(transformReservation);
+        res.json(transformed);
+    }
+    catch {
+        res.status(500).send("Unexpected server side error occurred");
+    }
+}
 async function createReservation(req, res) { }
 async function updateReservation(req, res) { }
 async function deleteReservation(req, res) { }
