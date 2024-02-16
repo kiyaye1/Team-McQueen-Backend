@@ -17,8 +17,7 @@ function getCustomer(req, res) {
 
     db.select(customerObjectFields).from('Customer')
         .where('customerID', customerID)
-        .then(function(result) {
-
+        .then(function (result) {
             if (result.length == 0) {
                 res.status(404).send('No Customer found by customer_id ' + customerID);
                 return
@@ -44,7 +43,7 @@ function getCustomer(req, res) {
 }
 
 function getCustomers(req, res) {
-    fields = customerObjectFields;
+    fields = Array.from(customerObjectFields);
     fields[fields.indexOf('statusCode')] = 'CustomerStatus.statusCode';
     fields = fields.concat(['CustomerStatus.statusCode', 'shortDescription', 'longDescription']);
     db.select(fields).from('Customer')
@@ -62,7 +61,6 @@ function getCustomers(req, res) {
                 delete x['longDescription'];
             });
 
-            console.log(result);
             res.json(result);
         }).catch(function(err) {
             res.sendStatus(500);
@@ -137,7 +135,7 @@ function createCustomer(req, res) {
     });
 }
 
-function updateCustomer(req, res) {
+async function updateCustomer(req, res) {
     let customerID = req.params['customer_id'];
 
     // check to make sure all elements in
@@ -161,20 +159,24 @@ function updateCustomer(req, res) {
 
     // if they are trying to edit the email address
     // the candidate email address needs to be checked for uniqueness
-    let emailIsUsed = false;
     if (req.body['emailAddress']) {
-        db.select('emailAddress').from('Customer')
+        let emailIsUsed = true;
+        emailIsUsed = await db.select('emailAddress').from('Customer')
             .whereNot('customerID', customerID).andWhere('emailAddress', req.body['emailAddress']).then(
-                function(result) {
+                function (result) {
                     if (result.length > 0) {
                         // email address is already being used
                         res.status(400).send("Email address " + req.body['emailAddress'] + " is already in use");
-                        return
+                        return true;
+                    }
+                    else {
+                        return false;
                     }
                 }
-            ).catch(function(err) {
+        ).catch(function (err) {
                 return res.sendStatus(500);
             });
+        if (emailIsUsed == true) return;
     }
 
     // update all the elements given
