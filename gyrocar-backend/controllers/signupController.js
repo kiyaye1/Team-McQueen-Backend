@@ -77,12 +77,14 @@ const signUp = async(req, res) => {
 
     //Validate email uniqueness
     const sqlEmail = 'SELECT COUNT(*) AS count FROM Customer WHERE emailAddress = ?';
-    db.query(sqlEmail, [emailAddress], (err, result) => {
-        if(result[0].count === 1) {
-            res.status(400).send("Error");
-            return;
-        }
+    let result = await new Promise((resolve, reject) => {
+        db.query(sqlEmail, [emailAddress], (err, result) => {
+            resolve(result);
+        });
     });
+    if (result[0].count >= 1) {
+        return res.status(400).send("Email is not unique");
+    }
 
     //Validate whether mailing address is provided or not
     if ((validator.isEmpty(validator.trim(mailingAddress))) === true) {
@@ -98,12 +100,14 @@ const signUp = async(req, res) => {
 
     //Validate username uniqueness
     const sqlUserName = 'SELECT COUNT(*) AS countUserName FROM Customer WHERE username = ?';
-    db.query(sqlUserName, [username], (err, result) => {
-        if(result[0].countUserName === 1) {
-            res.status(400).send("Error");
-            return;
-        }
+    result = await new Promise((resolve, reject) => {
+        db.query(sqlUserName, [username], (err, result) => {
+            resolve(result);
+        });
     });
+    if (result[0].countUserName >= 1) {
+        return res.status(400).send("Username is not unique");
+    }
 
     //Check if the password can be considered a strong password or not 
     //[minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1]
