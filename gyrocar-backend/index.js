@@ -1,17 +1,23 @@
 const express = require('express');
-const database = require('./database');
 const signUp = require('./routes/signUp');
 
 const app = express();
 
-app.use(express.json());
+// Automatically parse request body
+app.use(express.json())
 app.use(express.urlencoded({extended: false}));
 
-database;
 
-app.use(signUp);
+// Defining route location
+const customersRoute = require('./routes/customers');
+const signUpRoute = require('./routes/signUp');
 
-app.listen(8080, () => {
-    console.log('listening on port 8080');
+// Bind requests to route
+app.use('/customers', customersRoute);
+app.use('/signup', signUpRoute);
+
+
+app.listen(8080, function () {
+    console.log("Started application on port %d", 8080);
 });
 
