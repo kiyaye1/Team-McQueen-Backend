@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../database');
+const db = require('../raw_mysql');
 
 const bcrypt = require("bcrypt");
 const validator = require("validator");
@@ -45,7 +45,7 @@ const signUp = async(req, res) => {
 
     //Initial customer status (pending verification)
     const statusCode = 'PVN';
-    const createdDatetime = dayjs.tz(dayjs(), 'America/New_York').format('YYYY-MM-DD HH:mm:ss');
+    const createdDatetime = dayjs().format('YYYY-MM-DD HH:mm:ss');
     //Initial phone verification status (0 - not verified)
     const phoneVerified = 0;
     //Initial email verification status (0 - not verified)
@@ -53,25 +53,25 @@ const signUp = async(req, res) => {
     
     //Validate first name using the regex pattern 
     if((namePattern.test(validator.trim(firstName))) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Validate last name using the regex pattern
     if((namePattern.test(validator.trim(lastName))) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Validate for a 10 digit phone number using the regex pattern - phoneNumberPattern
     if((phoneNumPattern.test(validator.trim(phoneNumber))) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Validate whether the given string literal is an email or not
     if((validator.isEmail(validator.trim(emailAddress))) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
@@ -79,20 +79,20 @@ const signUp = async(req, res) => {
     const sqlEmail = 'SELECT COUNT(*) AS count FROM Customer WHERE emailAddress = ?';
     db.query(sqlEmail, [emailAddress], (err, result) => {
         if(result[0].count === 1) {
-            res.send("Error");
+            res.status(400).send("Error");
             return;
         }
     });
 
     //Validate whether mailing address is provided or not
     if ((validator.isEmpty(validator.trim(mailingAddress))) === true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Validate whether username is provided or not
     if ((validator.isEmpty(validator.trim(username))) === true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
@@ -100,7 +100,7 @@ const signUp = async(req, res) => {
     const sqlUserName = 'SELECT COUNT(*) AS countUserName FROM Customer WHERE username = ?';
     db.query(sqlUserName, [username], (err, result) => {
         if(result[0].countUserName === 1) {
-            res.send("Error");
+            res.status(400).send("Error");
             return;
         }
     });
@@ -108,13 +108,13 @@ const signUp = async(req, res) => {
     //Check if the password can be considered a strong password or not 
     //[minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1]
     if((validator.isStrongPassword(hashedPassword)) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Check whether the retyped password matches the password given or not
     if((validator.equals(hashedPassword, retypedPassword)) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
@@ -125,8 +125,8 @@ const signUp = async(req, res) => {
         }
         //Insert customer data into the database
         db.query(sql, [firstName, lastName, middleInitial, suffix, statusCode, username, hash, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress], (err, data) => {
-            if(err) return res.json("Error");     
-            return res.json(data);                
+            if (err) return res.status(400).send("Error");
+            return res.send("Sign Up successful");                
         });
     });                          
 };
@@ -144,14 +144,14 @@ const updateWdl = async(req, res) => {
 
     //Validate the drivers license numbers respective of the states they are issued
     if(isValid((validator.trim(driversLicenseState)).toUpperCase(), validator.trim(driversLicenseNum).toUpperCase()) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Update the table Customer with the drivers license information in the database
     db.query(sqlDl, [driversLicenseNum, driversLicenseState, username], (err, data) => {
         if(err) return res.json("Error");        
-        return res.json(data);       
+        return res.send("Driver's license information updated successfully");       
     });  
 };
 
@@ -173,25 +173,25 @@ const postCCI = async(req, res) => {
 
     //Validate credit card holder name using the regex pattern - namePattern 
     if((namePattern.test(validator.trim(cardholderName))) != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Validate credit card number 
     if(valid.number(creditCardNumberHash).isValid != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Validate card expiration date 
     if(valid.expirationDate(expirationDate, expYear).isValid != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     }
 
     //Validate card security code 
     if(valid.cvv(securityCodeHash).isValid != true) {
-        res.send("Error");
+        res.status(400).send("Error");
         return;
     } 
 
@@ -201,7 +201,7 @@ const postCCI = async(req, res) => {
     //Fetch customerID from the table Customer in the database
     db.query(sqlCI, [username], (err, data) => {
         if (data.length == 0 || err) {
-            res.send("Error");
+            res.status(400).send("Error");
             return
         }
         
@@ -222,8 +222,8 @@ const postCCI = async(req, res) => {
                     
                 //Add the credit card information into the table Customer in the database
                 db.query(sqlCCI, [data[0].customerID, cardholderName, hashCC, expirationDate, hashCV], (err, result) => {
-                    if(err) return res.json("Error");        
-                    return res.json(result);       
+                    if (err) return res.status(400).json("Error");
+                    return res.send("Customer payment information updated successfully");       
                 }); 
             });
         }); 
