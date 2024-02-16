@@ -20,4 +20,3 @@ app.use('/signup', signUpRoute);
 app.listen(8080, function () {
     console.log("Started application on port %d", 8080);
 });
-
