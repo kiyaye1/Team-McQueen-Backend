@@ -21,8 +21,7 @@ const phoneNumPattern = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
 //RegExp pattern for names
 const namePattern = /^[a-z ,.'-]+$/i;
 
-//Initialize username to track the user throughout the signup process
-let username = "";
+
 
 //******************************************************************************************************** */
 //The main logic to collect customer data, do data validation, and finally add it into the database
@@ -36,7 +35,7 @@ const signUp = async(req, res) => {
     const lastName = req.body.lastName;
     const middleInitial = req.body.middleInitial;
     const suffix = req.body.suffix;
-    username = req.body.username;
+    const username = req.body.username;
     const hashedPassword = req.body.hashedPassword;
     const phoneNumber = req.body.phoneNumber; 
     const emailAddress = req.body.emailAddress;
@@ -130,7 +129,9 @@ const signUp = async(req, res) => {
         //Insert customer data into the database
         db.query(sql, [firstName, lastName, middleInitial, suffix, statusCode, username, hash, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress], (err, data) => {
             if (err) return res.status(400).send("Error");
-            return res.send("Sign Up successful");                
+            return res.json({
+                customerID: data.insertId
+            });                
         });
     });                          
 };
@@ -139,21 +140,37 @@ const signUp = async(req, res) => {
 //The main logic to collect drivers license data, do data validation, and finally add it into the database
 const updateWdl = async(req, res) => {
 
+
     //Create sql update statement
-    const sqlDl = 'UPDATE `Customer` SET driversLicenseNum = ?,  driversLicenseState = ? WHERE username = ?';
+    const sqlDl = 'UPDATE `Customer` SET driversLicenseNum = ?,  driversLicenseState = ? WHERE customerID = ?';
+
+    const customerID = String(req.params.customer_id);
+    if (!validator.isNumeric(customerID)) {
+        return res.status(400).send("customerID is incorrectly formatted");
+    }
+
+    // check to make sure customerID exists
+    let result = await new Promise((resolve, reject) => {
+        db.query('SELECT customerID FROM Customer WHERE customerID = ?', [customerID], (err, result) => {
+            resolve(result);
+        })
+    });
+    if (result.length != 1) {
+        return res.status(400).send("customerID does not exist");
+    }
 
     //Get the drivers license number and the state it is issued
     const driversLicenseNum = req.body.driversLicenseNum;
-    const driversLicenseState = req.body.driversLicenseState;
+    const driversLicenseState = req.body.driversLicenseState.toUpperCase();
 
     //Validate the drivers license numbers respective of the states they are issued
-    if(isValid((validator.trim(driversLicenseState)).toUpperCase(), validator.trim(driversLicenseNum).toUpperCase()) != true) {
+    if (isValid((validator.trim(driversLicenseState)), validator.trim(driversLicenseNum).toUpperCase()) != true) {
         res.status(400).send("Error");
         return;
     }
 
     //Update the table Customer with the drivers license information in the database
-    db.query(sqlDl, [driversLicenseNum, driversLicenseState, username], (err, data) => {
+    db.query(sqlDl, [driversLicenseNum, driversLicenseState, customerID], (err, data) => {
         if(err) return res.json("Error");        
         return res.send("Driver's license information updated successfully");       
     });  
@@ -162,6 +179,17 @@ const updateWdl = async(req, res) => {
 //******************************************************************************************************** */
 //The main logic to collect credit card information, do data validation, and finally add it into the database
 const postCCI = async(req, res) => {
+
+    const customerID = req.params['customer_id'];
+    // check to make sure customerID exists
+    let result = await new Promise((resolve, reject) => {
+        db.query('SELECT customerID FROM Customer WHERE customerID = ?', [customerID], (err, result) => {
+            resolve(result);
+        })
+    });
+    if (result.length != 1) {
+        return res.status(400).send("customerID does not exist");
+    }
     
     //Get the credit card information
     const cardholderName = req.body.cardholderName;
@@ -200,10 +228,10 @@ const postCCI = async(req, res) => {
     } 
 
     //Create sql select statement to fetch customerID
-    const sqlCI = "SELECT customerID FROM Customer WHERE username = ?";
+    const sqlCI = "SELECT customerID FROM Customer WHERE customerID = ?";
 
     //Fetch customerID from the table Customer in the database
-    db.query(sqlCI, [username], (err, data) => {
+    db.query(sqlCI, [customerID], (err, data) => {
         if (data.length == 0 || err) {
             res.status(400).send("Error");
             return
