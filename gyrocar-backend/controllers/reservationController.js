@@ -48,6 +48,65 @@ let baseFullQuery = db.select(joinedReservationFields).from('CarReservation')
     .leftJoin('Station AS EndStation', 'EndStation.stationID', 'CarReservation.endStationID');
 
 
+async function isValidReservation(startStation, endStation, startTime, endTime, carID ) {
+    const PRE_RESERVATION_TIME_GAP = 1; // 1 hour before reservations to allow for charging
+    let valid = true;
+    let errorMessage = "";
+
+    // Check to make sure end time is after the start time
+    if (!endTime.isAfter(startTime)) {
+        valid = false;
+        errorMessage = "Start time is after the end time";
+        return [valid, errorMessage];
+    }
+
+    // TODO: Check to make sure reservation is within
+    // Only reserve less than a month in advance?
+    // reservation time limit?
+
+    // add buffer to start and end times
+    // and format as a string in the MySQL desired format
+    startTimeWithBuffer = dayjs(startTime).subtract(PRE_RESERVATION_TIME_GAP, 'hour').format("YYYY-MM-DD HH:mm:ss");
+    endTimeWithBuffer = dayjs(endTime).add(PRE_RESERVATION_TIME_GAP, 'hour').format("YYYY-MM-DD HH:mm:ss");
+
+    // Check if car will be at the station at the start of the reservation
+    // It finds the most recent reservation that ends
+    // before the candidate reservatrion starts for that car
+    // and checks if that station matches the requested starting station
+    let prevStation = await db.select('endStationID').from('CarReservation')
+        .where('scheduledEndDatetime', 
+            db.max('scheduledEndDatetime').from('CarReservation')
+                .where('carID', carID).andWhere('scheduledEndDatetime', '<', startTimeWithBuffer))
+        .andWhere('carID', carID);
+    prevStation = prevStation[0];
+
+    if (prevStation != undefined && prevStation.endStationID != startStation) {
+        valid = false;
+        errorMessage = `Car ${carID} will not be located at station ${startStation} at the start of this reservation`;
+        return [valid, errorMessage];
+    }   
+
+    // check to ensure the times will not overlap with other reservations
+    // It does this by looking for reservations that would intersect
+    // with the requested start or end times taking into 
+    // account the time gap to allow for charging
+    let overlappingReservations = await db.select('reservationID').from('CarReservation')
+        .where('carID', carID)
+        .andWhere((query) => query
+            .orWhere((query) => query
+                .where('scheduledStartDatetime', '>', startTimeWithBuffer).andWhere('scheduledStartDatetime', '<', endTimeWithBuffer))  // solid reservation starts during candidate
+            .orWhere((query) => query
+                .where('scheduledEndDatetime', '>', startTimeWithBuffer).andWhere('scheduledEndDatetime', '<', endTimeWithBuffer)) // solid reservation ends during candidate
+        );
+    if (overlappingReservations.length > 0) {
+        valid = false;
+        errorMessage = "Reservation will overlap with an existing reservation";
+        return [valid, errorMessage];
+    }
+
+    return [valid, errorMessage];
+}
+
 function transformReservation(result) {
     return {
         reservationID: result["reservationID"],
@@ -162,7 +221,7 @@ async function getReservation(req, res) {
 
 async function getReservations(req, res) {
     try {
-        let result = await baseFullQuery.clear("where"); // clear
+        let result = await baseFullQuery.clear("where"); // clear where clause if exists
 
         transformed = result.map(transformReservation);
         res.json(transformed);
@@ -171,6 +230,7 @@ async function getReservations(req, res) {
         res.status(500).send("Unexpected server side error occurred");
     }
 }
+
 async function createReservation(req, res) {
     // look for fields that need to be included
     // and output if any are not found
@@ -231,6 +291,9 @@ async function createReservation(req, res) {
     // Check to make sure the customer, stations, and car
     // actually exist in the database so that there 
     // aren't any foreign key constraint issues
+    //
+    // All queries will be handled asynchronously
+    // and gathered at the end
     fieldsNotFound = [];
     let customer = db.select(customerFields).from('Customer')
         .leftJoin('CustomerStatus', 'CustomerStatus.statusCode', 'Customer.statusCode')
@@ -269,6 +332,8 @@ async function createReservation(req, res) {
             return result[0];
         })
 
+    // wait for queries to finish and
+    // extract the results into their own
     let results = await Promise.all([customer, startStation, endStation, car]);
     customer = results[0];
     startStation = results[1];
@@ -295,8 +360,12 @@ async function createReservation(req, res) {
         return res.status(400).send("Customer's email has not been verified and needs to be verified before reservations can be made");
     }
 
+    let [valid, errorMessage] = await isValidReservation(startStationID, endStationID, scheduledStartDatetime, scheduledEndDatetime, carID);
+    if (!valid) {
+        return res.status(400).send(errorMessage);
+    }
 
-    res.send();
+    res.send("OK");
 }
 async function updateReservation(req, res) { }
 async function deleteReservation(req, res) { }
