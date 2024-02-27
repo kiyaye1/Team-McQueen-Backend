@@ -17,8 +17,8 @@ const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
 async function loginRequest(req, res){
     const { username, password } = req.body;
     // Call the Login function from the business layer
-    employee = db.select(loginEmployeeFields)
-        .from("Station")
+    employee = await db.select(loginEmployeeFields)
+        .from("Employee")
         .where("username", username)
         .then(function (result) {
             if (result.length == 0) {
@@ -29,36 +29,44 @@ async function loginRequest(req, res){
             return result;
         })
         .catch(function (err) {
-            res.status(500).send("Unexpected server error");
+            res.status(500);
         });
-    if(!employee){
-        employee = db.select(loginCustomerFields)
-            .from("Station")
-            .where("username", username)
-            .then(function (result) {
-                if (result.length == 0) {
-                    return null;
-                }
-
-                result = Object.assign({}, result[0]);
-                return result;
-            })
-            .catch(function (err) {
-                res.status(500).send("Unexpected server error");
-            });
-    }
+    user = await db.select(loginCustomerFields)
+        .from("Customer")
+        .where("username", username)
+        .then(function (result) {
+            if (result.length == 0) {
+                console.log("hi");
+                return null;
+            }
+            console.log("hi");
+            result = Object.assign({}, result[0]);
+            return result;
+        })
+        .catch(function (err) {
+            res.status(500);
+        });
+    loginResult = null;
+    console.log(user);
     if(!employee && !user){
         loginResult = "Username Doesn't Exist";
     } else if(!employee && user){
-        LoginResult = bcrypt.compare(password,user.password);
+        let base64string = user.password;
+        console.log("encoded password" + base64string);
+        let bufferObj = Buffer.from(base64string, "base64");
+        let decodedString = bufferObj.toString("utf8");
+        loginResult = bcrypt.compare(password,decodedString);
         result = user;
     } else if(employee && !user){
-        loginResult = bcrypt.compare(password,employee.password);
+        let base64string = employee.password;
+        console.log("encoded password" + base64string);
+        let bufferObj = Buffer.from(base64string, "base64");
+        let decodedString = bufferObj.toString("utf8");
+        loginResult = bcrypt.compare(password,decodedString);
         result = employee;
     }
 
     if (loginResult == true) {
-
         
         // If login is successful, create a token
         const token = jwt.sign({ username: result.username}, secret, { expiresIn: '6h' });
@@ -68,8 +76,9 @@ async function loginRequest(req, res){
         res.status(200).redirect('/home');
 
     } else if(loginResult == "Username Doesn't Exist"){
-        res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a correct Password"});
+        res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a real username"});
     } else{
+        console.log(loginResult);
         res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a correct Password"});
     }
 }

@@ -4,7 +4,7 @@ const router = express.Router();
 const db = require('../database');
 const loginController = require('../controllers/loginController');
 
-router.get('/loginRequest', loginController.loginRequest);
+router.post('/loginRequest', loginController.loginRequest);
 
 
 
