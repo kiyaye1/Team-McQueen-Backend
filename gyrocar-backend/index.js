@@ -27,7 +27,6 @@ app.use((req, res, next) => {
         const decoded = jwt.verify(token, secret);
 
         //add userId to the request
-        req.tokenUsername = decoded.username;
         if(decoded.employeeID != null){
             req.tokenID = decoded.employeeID;
         } else{

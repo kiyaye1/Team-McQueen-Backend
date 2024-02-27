@@ -10,18 +10,18 @@ const jwt = require('jsonwebtoken');
 
 const bcrypt = require('bcrypt');
 
-const loginEmployeeFields = ['employeeID', 'username', 'hashedPassword'];
-const loginCustomerFields = ['customerID', 'username', 'hashedPassword']
+const loginEmployeeFields = ['employeeID', 'emailAddress', 'hashedPassword'];
+const loginCustomerFields = ['customerID', 'emailAddress', 'hashedPassword']
 
 //Change Eventually
 const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
 
 async function loginRequest(req, res){
-    const { username, password } = req.body;
+    const { emailAddress, password } = req.body;
     // Call the Login function from the business layer
     employee = await db.select(loginEmployeeFields)
         .from("Employee")
-        .where("username", username)
+        .where("emailAddress", emailAddress)
         .then(function (result) {
             if (result.length == 0) {
                 return null;
@@ -35,7 +35,7 @@ async function loginRequest(req, res){
         });
     user = await db.select(loginCustomerFields)
         .from('Customer')
-        .where('username', username)
+        .where('emailAddress', emailAddress)
         .then(function (result) {
             if (result.length == 0) {
                 return null;
@@ -48,7 +48,7 @@ async function loginRequest(req, res){
         });
     loginResult = null;
     if(!employee && !user){
-        loginResult = "Username Doesn't Exist";
+        loginResult = "Email Address Doesn't Exist";
     } else if(!employee && user){
         let base64string = user.hashedPassword;
         let bufferObj = Buffer.from(base64string, "base64");
@@ -69,16 +69,16 @@ async function loginRequest(req, res){
 
         // If login is successful, create a token
         if(user){
-            token = jwt.sign({ username: result.username, customerID: result.customerID}, secret, { expiresIn: '6h' });
+            token = jwt.sign({ emailAddress: result.emailAddress, customerID: result.customerID}, secret, { expiresIn: '6h' });
         } else{
-            token = jwt.sign({ username: result.username, employeeID: result.employeeID}, secret, { expiresIn: '6h' });
+            token = jwt.sign({ emailAddress: result.emailAddress, employeeID: result.employeeID}, secret, { expiresIn: '6h' });
         }
         // Send token to client
         res.cookie('token', token, { httpOnly: true });
         res.status(200).redirect('/home');
 
-    } else if(loginResult == "Username Doesn't Exist"){
-        res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a real username"});
+    } else if(loginResult == "Email Address Doesn't Exist"){
+        res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a real Email Address"});
     } else{
         res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a correct Password"});
     }
