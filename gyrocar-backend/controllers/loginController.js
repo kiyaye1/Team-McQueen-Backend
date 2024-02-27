@@ -6,10 +6,12 @@ const validator = require('validator');
 
 const db = require('../database');
 
+const jwt = require('jsonwebtoken');
+
 const bcrypt = require('bcrypt');
 
-const loginEmployeeFields = ['employeeID', 'username', 'password'];
-const loginCustomerFields = ['customerID', 'username', 'password']
+const loginEmployeeFields = ['employeeID', 'username', 'hashedPassword'];
+const loginCustomerFields = ['customerID', 'username', 'hashedPassword']
 
 //Change Eventually
 const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
@@ -29,48 +31,48 @@ async function loginRequest(req, res){
             return result;
         })
         .catch(function (err) {
-            res.status(500);
+            res.sendStatus(500);
         });
     user = await db.select(loginCustomerFields)
-        .from("Customer")
-        .where("username", username)
+        .from('Customer')
+        .where('username', username)
         .then(function (result) {
             if (result.length == 0) {
-                console.log("hi");
                 return null;
             }
-            console.log("hi");
             result = Object.assign({}, result[0]);
             return result;
         })
         .catch(function (err) {
-            res.status(500);
+            res.sendStatus(500);
         });
     loginResult = null;
-    console.log(user);
     if(!employee && !user){
         loginResult = "Username Doesn't Exist";
     } else if(!employee && user){
-        let base64string = user.password;
-        console.log("encoded password" + base64string);
+        let base64string = user.hashedPassword;
         let bufferObj = Buffer.from(base64string, "base64");
         let decodedString = bufferObj.toString("utf8");
-        loginResult = bcrypt.compare(password,decodedString);
+        loginResult = await bcrypt.compare(password,decodedString);
         result = user;
     } else if(employee && !user){
-        let base64string = employee.password;
-        console.log("encoded password" + base64string);
+        let base64string = employee.hashedPassword;
         let bufferObj = Buffer.from(base64string, "base64");
         let decodedString = bufferObj.toString("utf8");
-        loginResult = bcrypt.compare(password,decodedString);
+        loginResult = await bcrypt.compare(password,decodedString);
         result = employee;
     }
 
     if (loginResult == true) {
         
+        let token = null;
+
         // If login is successful, create a token
-        const token = jwt.sign({ username: result.username}, secret, { expiresIn: '6h' });
-        
+        if(user){
+            token = jwt.sign({ username: result.username, customerID: result.customerID}, secret, { expiresIn: '6h' });
+        } else{
+            token = jwt.sign({ username: result.username, employeeID: result.employeeID}, secret, { expiresIn: '6h' });
+        }
         // Send token to client
         res.cookie('token', token, { httpOnly: true });
         res.status(200).redirect('/home');
@@ -78,7 +80,6 @@ async function loginRequest(req, res){
     } else if(loginResult == "Username Doesn't Exist"){
         res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a real username"});
     } else{
-        console.log(loginResult);
         res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a correct Password"});
     }
 }

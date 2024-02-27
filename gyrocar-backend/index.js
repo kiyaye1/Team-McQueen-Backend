@@ -1,7 +1,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const signUp = require('./routes/signUp');
-
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
@@ -18,22 +18,26 @@ app.use('/login', loginRoute);
 
 
 // Middleware to verify token
-// app.use((req, res, next) => {
-//     //console.log(req);
-//     const token  = req.cookies.token;
-//     if (!token) {
-//         return res.status(401).json({ error: 'No token provided', errorDescription: 'Token is required' });
-//     }
-//     try{
-//         const decoded = jwt.verify(token, secret);
+app.use((req, res, next) => {
+    const token  = req.cookies.token;
+    if (!token) {
+        return res.status(401).json({ error: 'No token provided', errorDescription: 'Token is required' });
+    }
+    try{
+        const decoded = jwt.verify(token, secret);
 
-//         //add userId to the request
-//         req.tokenUsername = decoded.username;
-//         next();
-//     } catch(error){
-//         res.status(401).json({ error: 'Invalid token', errorDescription: 'Token is invalid' });
-//     }
-// });
+        //add userId to the request
+        req.tokenUsername = decoded.username;
+        if(decoded.employeeID != null){
+            req.tokenID = decoded.employeeID;
+        } else{
+            req.tokenID = decoded.customerID;
+        }
+        next();
+    } catch(error){
+        res.status(401).json({ error: 'Invalid token', errorDescription: 'Token is invalid' });
+    }
+});
 
 //app.use(verifyToken());
 
