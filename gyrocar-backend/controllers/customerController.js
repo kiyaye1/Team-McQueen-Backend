@@ -7,7 +7,7 @@ const db = require('../database');
 
 const customerObjectFields = [
     "customerID", "firstName", "lastName", "middleInitial", "suffix", "statusCode",
-    "username", "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
+    "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
     "driversLicenseNum", "driversLicenseState"
 ]
 
