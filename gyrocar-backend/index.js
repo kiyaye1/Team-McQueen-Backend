@@ -1,7 +1,12 @@
 const express = require('express');
+const cors = require('cors');
+
 const signUp = require('./routes/signUp');
 
 const app = express();
+
+// Use CORS package to allow requests from any domain
+app.use(cors())
 
 // Automatically parse request body
 app.use(express.json())
