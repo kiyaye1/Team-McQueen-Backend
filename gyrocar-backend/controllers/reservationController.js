@@ -603,6 +603,56 @@ async function updateReservation(req, res) {
         });
 
 }
-async function deleteReservation(req, res) { }
+async function deleteReservation(req, res) {
+    // In order for deleting a reservation
+    // it needs to not invalidate the contiguity
+    // of the future reservations
+
+    let reservationID = parseInt(req.params["reservation_id"]);
+    if (!reservationID) {
+        return res.status(400).send("The reservationID is invalid");
+    }
+
+    let currentReservation = await db.select(reservationFields).from('CarReservation')
+        .where('reservationID', reservationID);
+    if (currentReservation.length < 1) {
+        return res.status(400).send("Reservation does not exist");
+    }
+    currentReservation = currentReservation[0];
+
+    // find the previous reservation that uses the
+    // same car as the reservation to be deleted
+    let prevStation = await db.select('endStationID').from('CarReservation')
+        .where('carID', currentReservation.carID)
+        .andWhere('scheduledEndDatetime',             
+            db.max('scheduledEndDatetime').from('CarReservation')
+                .where('carID', currentReservation.carID)
+                .andWhere('scheduledEndDatetime', '<', currentReservation.scheduledStartDatetime));
+    prevStation = prevStation.length == 0 ? undefined : prevStation[0].endStationID;
+
+    let nextStation = await db.select('startStationID').from('CarReservation')
+        .where('carID', currentReservation.carID)
+        .andWhere('scheduledStartDatetime',             
+            db.min('scheduledStartDatetime').from('CarReservation')
+                .where('carID', currentReservation.carID)
+                .andWhere('scheduledStartDatetime', '>', currentReservation.scheduledEndDatetime));
+    nextStation = nextStation.length == 0 ? undefined : nextStation[0].startStationID;
+    
+    if (nextStation != prevStation) {
+        if (!prevStation && currentReservation.startStationID != currentReservation.endStationID) {
+            return res.status(400).send("Reservation cannot be deleted since it will invalidate future reservations");
+        }
+        if (nextStation && prevStation) {
+            return res.status(400).send("Reservation cannot be deleted since it will invalidate future reservations");
+        }
+    }
+
+    db.delete().from('CarReservation').where('reservationID', reservationID)
+        .then(function(result) {
+            return res.send('Reservation successfully deleted');
+        }).catch(function(err) {
+            return res.status(500).send('Unexpected server side error');
+        });
+}
 
 module.exports = { getReservation, getReservations, createReservation, updateReservation, deleteReservation };
