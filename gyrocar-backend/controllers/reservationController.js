@@ -2,12 +2,12 @@ const db = require('../database');
 const validator = require("validator");
 
 const dayjs = require('dayjs');
-var utc = require('dayjs/plugin/utc')
+const utc = require('dayjs/plugin/utc')
 dayjs.extend(utc)
 
 const customerFields = [
     "customerID", "firstName", "lastName", "middleInitial", "suffix",
-    "username", "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
+    "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
     "driversLicenseNum", "driversLicenseState", "CustomerStatus.statusCode",
     "CustomerStatus.shortDescription", "CustomerStatus.longDescription"
 ]
@@ -28,7 +28,7 @@ const joinedReservationFields = [
     "EndStation.stationID AS EndStation.stationID", "EndStation.country AS EndStation.country", "EndStation.state AS EndStation.state", "EndStation.county AS EndStation.county",
     "EndStation.city AS EndStation.city", "EndStation.zip AS EndStation.zip", "EndStation.coordinates AS EndStation.coordinates", "EndStation.streetAddress AS EndStation.streetAddress",
     "Customer.customerID AS Customer.customerID", "Customer.firstName AS Customer.firstName", "Customer.lastName AS Customer.lastName", "Customer.middleInitial AS Customer.middleInitial",
-    "Customer.suffix AS Customer.suffix", "Customer.username AS Customer.username", "Customer.createdDatetime AS Customer.createdDatetime", "Customer.phoneNumber AS Customer.phoneNumber",
+    "Customer.suffix AS Customer.suffix", "Customer.createdDatetime AS Customer.createdDatetime", "Customer.phoneNumber AS Customer.phoneNumber",
     "Customer.emailAddress AS Customer.emailAddress", "Customer.phoneVerified AS Customer.phoneVerified", "Customer.emailVerified AS Customer.emailVerified", "Car.CarID AS Car.CarID",
     "Car.installDatetime AS Car.installDatetime", "Car.statusCode AS Car.statusCode", "CustomerStatus.statusCode AS CustomerStatus.statusCode", 
     "CustomerStatus.shortDescription AS CustomerStatus.shortDescription", "CustomerStatus.longDescription AS CustomerStatus.longDescription", "CarModel.carModelID AS CarModel.carModelID",
@@ -38,7 +38,7 @@ const joinedReservationFields = [
 
 // base query that contains all of the
 // joined tables necessary
-let baseFullQuery = db.select(joinedReservationFields).from('CarReservation')
+const baseFullQuery = db.select(joinedReservationFields).from('CarReservation')
     .leftJoin('Customer', 'Customer.customerID', 'CarReservation.customerID')
     .leftJoin('CustomerStatus', 'CustomerStatus.statusCode', 'Customer.statusCode')
     .leftJoin('Car', 'Car.carID', 'CarReservation.carID')
@@ -47,8 +47,13 @@ let baseFullQuery = db.select(joinedReservationFields).from('CarReservation')
     .leftJoin('Station AS StartStation', 'StartStation.stationID', 'CarReservation.startStationID')
     .leftJoin('Station AS EndStation', 'EndStation.stationID', 'CarReservation.endStationID');
 
-
-async function isValidReservation(startStation, endStation, startTime, endTime, carID ) {
+// Checks if a reservation is valid
+// It make sure that the reservation will not overlap with
+// another reservation for creating or updating reservation.
+// If attempting to update a reservation, specify the ID
+// of the reservation to be updated so that it doesn't 
+// look like an overlapping reservation
+async function isValidReservation(startStation, endStation, startTime, endTime, carID, currentReservationID ) {
     const PRE_RESERVATION_TIME_GAP = 1; // 1 hour before reservations to allow for charging
     let valid = true;
     let errorMessage = "";
@@ -66,8 +71,8 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
 
     // add buffer to start and end times
     // and format as a string in the MySQL desired format
-    startTimeWithBuffer = dayjs(startTime).subtract(PRE_RESERVATION_TIME_GAP, 'hour').format("YYYY-MM-DD HH:mm:ss");
-    endTimeWithBuffer = dayjs(endTime).add(PRE_RESERVATION_TIME_GAP, 'hour').format("YYYY-MM-DD HH:mm:ss");
+    let startTimeWithBuffer = dayjs(startTime).subtract(PRE_RESERVATION_TIME_GAP, 'hour').format("YYYY-MM-DD HH:mm:ss");
+    let endTimeWithBuffer = dayjs(endTime).add(PRE_RESERVATION_TIME_GAP, 'hour').format("YYYY-MM-DD HH:mm:ss");
 
     // Check if car will be at the station at the start of the reservation
     // It finds the most recent reservation that ends
@@ -90,7 +95,7 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
     // It does this by looking for reservations that would intersect
     // with the requested start or end times taking into 
     // account the time gap to allow for charging
-    let overlappingReservations = await db.select('reservationID').from('CarReservation')
+    let query = db.select('reservationID').from('CarReservation')
         .where('carID', carID)
         .andWhere((query) => query
             .orWhere((query) => query
@@ -98,6 +103,11 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
             .orWhere((query) => query
                 .where('scheduledEndDatetime', '>', startTimeWithBuffer).andWhere('scheduledEndDatetime', '<', endTimeWithBuffer)) // solid reservation ends during candidate
         );
+    if (currentReservationID) {
+        query.whereNot('reservationID', currentReservationID);
+    }
+    let overlappingReservations = await query;
+    
     if (overlappingReservations.length > 0) {
         valid = false;
         errorMessage = "Reservation will overlap with an existing reservation";
@@ -139,7 +149,6 @@ function transformReservation(result) {
             lastName: result["Customer.lastName"],
             middleInitial: result["Customer.middleInitial"],
             suffix: result["Customer.suffix"],
-            username: result["Customer.username"],
             createdDatetime: result["Customer.createdDatetime"],
             phoneNumber: result["Customer.phoneNumber"],
             emailAddress: result["Customer.emailAddress"],
@@ -333,7 +342,7 @@ async function createReservation(req, res) {
         })
 
     // wait for queries to finish and
-    // extract the results into their own
+    // extract the results into their own variables
     let results = await Promise.all([customer, startStation, endStation, car]);
     customer = results[0];
     startStation = results[1];
@@ -365,9 +374,235 @@ async function createReservation(req, res) {
         return res.status(400).send(errorMessage);
     }
 
-    res.send("OK");
+    let query = db.insert({
+        startStationID: startStationID,
+        endStationID: endStationID,
+        customerID: customerID,
+        scheduledStartDatetime: scheduledStartDatetime.format('YYYY-MM-DD HH:mm:ss'),
+        scheduledEndDatetime: scheduledEndDatetime.format('YYYY-MM-DD HH:mm:ss'),
+        carID: carID,
+        isComplete: 0
+    }).into('CarReservation');
+
+    query.then(function (result) {
+        res.json({ reservationID: result[0] }); // send back to the autoi incremented reservationID
+    })
+        .catch(function (err) {
+            res.status(500).send("Unexpected server side error");
+        });
 }
-async function updateReservation(req, res) { }
+async function updateReservation(req, res) {
+    // check to make sure all elements in
+    // the request body are understood
+    invalidFields = []
+    Object.keys(req.body).forEach(field => {
+        if (!reservationFields.includes(field)) {
+            invalidFields.push(field);
+        }
+    });
+    if (invalidFields.length > 0) {
+        res.status(400).send("The following fields are invalid for this request: " + invalidFields.join(', '));
+        return
+    }
+
+    // validate the incoming data
+    // ensure the reservationID is valid and
+    // already exists in the db 
+    if (typeof req.params["reservation_id"] == "string" && !validator.isNumeric(req.params["reservation_id"])) {
+        return res.status(400).send("Bad Request: reservationID is invalid, it must be an int");
+    }
+    let reservationID = Number(req.params["reservation_id"]);
+
+    // get the current reservation object
+    let currentReservation = await db.select().from('CarReservation').where('reservationID', reservationID)
+        .then(function(result) { 
+            return result[0]; 
+        });
+    if (!currentReservation) {
+        return res.status(400).send("reservationID does not exist");
+    }
+
+    let updateObject = currentReservation;
+
+    // validate each parameter in body
+    if (req.body["reservationID"]) {
+        return res.status(400).send("ReservationID cannot be updated");
+    }
+
+    let startStation, endStation, customer, car;
+    // Check startStationID
+    if (req.body["startStationID"]) {
+        if (typeof req.body["startStationID"] == "string" && !validator.isNumeric(req.body["startStationID"])) {
+            return res.status(400).send("StartStationID is invalid, it must be an integer");
+        }
+        updateObject["startStationID"] = Number(req.body["startStationID"]);
+        startStation = db.select('stationID').from('Station')
+            .where('stationID', updateObject["startStationID"])
+            .then(function (result) {
+                if (result.length == 1) {
+                    return result[0];
+                }
+                return false;
+            });
+    }
+
+    // Check endStationID
+    if (req.body["endStationID"]) {
+        if (typeof req.body["endStationID"] == "string" && !validator.isNumeric(req.body["endStationID"])) {
+            return res.status(400).send("EndStationID is invalid, it must be an integer");
+        }
+        updateObject["endStationID"] = Number(req.body["startStationID"]);
+        endStation = db.select('stationID').from('Station')
+            .where('stationID', updateObject["endStationID"])
+            .then(function (result) {
+                if (result.length == 1) {
+                    return result[0];
+                }
+                return false; 
+            });
+    }
+
+    // Check customerID
+    let customerID;
+    if (req.body["customerID"]) {
+        if (typeof req.body["customerID"] == "string" && !validator.isNumeric(req.body["customerID"])) {
+            return res.status(400).send("CustomerID is invalid, it must be an integer");
+        }
+        updateObject["customerID"] = Number(req.body["customerID"]);
+        customerID = updateObject["customerID"];
+    }
+    else {
+        customerID = currentReservation["customerID"];
+    }
+    customer = db.select(['customerID', 'statusCode', 'phoneVerified', 'emailVerified'])
+    .from('Customer')
+    .where('customerID', customerID)
+    .then(function (result) {
+        if (result.length == 1) {
+            return result[0];
+        }         
+        return false;
+    })
+
+    // Check carID
+    if (req.body["carID"]) {
+        if (typeof req.body["carID"] == "string" && !validator.isNumeric(req.body["carID"])) {
+            return res.status(400).send("carID is invalid, it must be an integer");
+        }
+        updateObject["carID"] = Number(req.body["carID"]);
+        car = db.select(['carID', 'statusCode'])
+            .from('Car')
+            .where('carID', updateObject["carID"])
+            .then(function (result) {
+                if (result.length == 1) {
+                    return result[0];
+                }
+                return false;
+            })
+        }
+
+    let results = await Promise.all([startStation, endStation, customer, car]);
+    // Only check if equivalent to false since the 
+    // values will be undefined if they queries are 
+    // not performed since they are not in the request body
+    startStation = results[0]
+    if (startStation === false) {
+        return res.status(400).send("StartStation does not exist");
+    }
+    endStation = results[1]
+    if (endStation === false) {
+        return res.status(400).send("EndStation does not exist");
+    }
+    customer = results[2];
+    if (customer === false) {
+        return res.status(400).send("Customer does not exist");
+    }
+    car = results[3];
+    if (car === false) {
+        return res.status(400).send("Car does not exist");
+    }
+    else {
+        // make sure the car is in the ready state
+        if (car.statusCode != "RDY") {
+            return res.status(400).send("This car is not available for reservation since it's status is not `Ready`")
+        }
+    }
+
+    if (req.body["scheduledStartDatetime"]) {
+        updateObject["scheduledStartDatetime"] = req.body["scheduledStartDatetime"];
+        if (!dayjs(updateObject["scheduledStartDatetime"]).isValid()) {
+            return res.status(400).send("scheduledStartDatetime is invalid");
+        }
+    }
+
+    if (req.body["scheduledEndDatetime"]) {
+        updateObject["scheduledEndDatetime"] = req.body["scheduledEndDatetime"];
+        if (!dayjs(updateObject["scheduledEndDatetime"]).isValid()) {
+            return res.status(400).send("scheduledEndDatetime is invalid");
+        }
+    }
+
+    if (req.body["actualStartDatetime"]) {
+        if (dayjs(req.body["actualStartDatetime"]).isValid()) {
+            updateObject["actualStartDatetime"] = req.body["actualStartDatetime"];
+        }
+        else {
+            return res.status(400).send("actualStartDatetime is invalid");
+        }
+    }
+
+    if (req.body["actualEndDatetime"]) {
+        if (dayjs(req.body["actualEndDatetime"]).isValid()) {
+            updateObject["actualEndDatetime"] = req.body["actualEndDatetime"];
+        }
+        else {
+            return res.status(400).send("actualEndDatetime is invalid");
+        }
+    }
+
+    if (req.body["isComplete"] != undefined) {
+        if (req.body["isComplete"] == 1 || req.body["isComplete"] == 0) {
+            updateObject["isComplete"] = req.body["isComplete"];
+        }
+        else {
+            return res.status(400).send("isComplete is invalid, must be 1 or 0");
+        }
+    }
+
+    // Check to make sure customer is allowed to reserve.
+    // The customer statusCode needs to be RDY for Ready
+    if (customer["statusCode"] != "RDY") {
+        return res.status(400).send(`Customer state of ${customer["statusCode"]} does not allow for creating reservations. \
+                                    The state needs to be 'RDY'`);
+    }
+    // check that the customer's phone number and email has been verified
+    if (customer["phoneVerified"] == 0) {
+        return res.status(400).send("Customer's phone has not been verified and needs to be verified before reservations can be made");
+    }
+    if (customer["emailVerified"] == 0) {
+        return res.status(400).send("Customer's email has not been verified and needs to be verified before reservations can be made");
+    }
+
+    let [valid, errorMessage] = await isValidReservation(updateObject["startStationID"], 
+        updateObject["endStationID"], 
+        dayjs(updateObject["scheduledStartDatetime"]), 
+        dayjs(updateObject["scheduledEndDatetime"]), 
+        updateObject["carID"],
+        updateObject["reservationID"]);
+    if (!valid) {
+        return res.status(400).send(errorMessage);
+    }
+
+
+    // Update the reservation using the data in the updateObject
+    db.update(updateObject).from('CarReservation').where('reservationID', reservationID)
+        .then(function(result) {
+            return res.send("Reservation updated successfully");
+        }).catch(function(err) {
+            return res.status(500).send("Unexpected server side error");
+        });
+
+}
 async function deleteReservation(req, res) { }
 
 module.exports = { getReservation, getReservations, createReservation, updateReservation, deleteReservation };
