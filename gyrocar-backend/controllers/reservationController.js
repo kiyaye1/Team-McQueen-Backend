@@ -5,6 +5,8 @@ const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc')
 dayjs.extend(utc)
 
+const METERS_IN_MILE = 1609.344;
+
 const customerFields = [
     "customerID", "firstName", "lastName", "middleInitial", "suffix",
     "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
@@ -655,4 +657,96 @@ async function deleteReservation(req, res) {
         });
 }
 
-module.exports = { getReservation, getReservations, createReservation, updateReservation, deleteReservation };
+
+async function getAvailableReservations(req, res) {
+    // check for required search criteria
+    if (!req.body["scheduledStartDatetime"]) {
+        return res.status(400).send("A scheduledStartDatetime must be specified in request body");
+    }
+    if (!dayjs(req.body["scheduledStartDatetime"]).isValid()) {
+        return res.status(400).send("scheduledStartDatetime is improperly formatted");
+    }
+    req.body["scheduledStartDatetime"] = dayjs(req.body["scheduledStartDatetime"]).format('YYYY-MM-DD HH:mm:ss');
+
+    if (!req.body["scheduledEndDatetime"]) {
+        return res.status(400).send("A scheduledEndDatetime must be specified in request body");
+    }
+    if (!dayjs(req.body["scheduledEndDatetime"]).isValid()) {
+        return res.status(400).send("scheduledEndDatetime is improperly formatted");
+    }
+    req.body["scheduledEndDatetime"] = dayjs(req.body["scheduledEndDatetime"]).format('YYYY-MM-DD HH:mm:ss');
+
+
+    if (!req.body["startStationID"]) {
+        return res.status(400).send("A startStationID must be specified in request body");
+    }
+    req.body["startStationID"] = parseInt(req.body["startStationID"]);
+    if (!req.body["startStationID"]) {
+        return res.status(400).send("startStationID is improperly formatted");
+    }
+
+    if (req.body["coordinates"]) {
+        if (!req.body["coordinates"]["lat"] || !req.body["coordinates"]["lng"]) {
+            return res.status(400).send("Coordinates are incorrectly formatted");
+        }
+        req.body["coordinates"]["lat"] = parseFloat(req.body["coordinates"]["lat"]);
+        req.body["coordinates"]["lng"] = parseFloat(req.body["coordinates"]["lng"]);
+        if (!req.body["coordinates"]["lat"] || !req.body["coordinates"]["lng"]) {
+            return res.status(400).send("Latitude and longitude must be numeric values");
+        }
+    }
+
+    let carsAtStation = await db.select('carID').max('scheduledEndDatetime AS lastEnd')
+        .from('CarReservation')
+        .where('scheduledEndDatetime', '<', req.body["scheduledStartDatetime"])
+        .andWhere('endStationID', req.body["startStationID"])
+        .groupBy('carID');
+
+    let carCount = 0;
+    let promises = [];
+    carsAtStation.forEach(car => {
+        // get the next reservation for the cars
+        // that will be at the station
+        promises.push(db.select('carID').min('scheduledStartDatetime AS nextStart')
+            .from('CarReservation')
+            .where('carID', car.carID)
+            .andWhere('scheduledStartDatetime', '>', dayjs(car.lastEnd).format('YYYY-MM-DD HH:mm:ss'))
+            .then(function(result) {
+                if (result.carID === null) {
+                    carCount += 1;
+                }
+                else if (dayjs(result.nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"]) ) {
+                    carCount += 1;
+                }
+            }));
+    });
+
+    await Promise.all(promises);
+
+    // collect the rest of the information needed for the response
+    let query = db.select(['stationID', 'state', 'county', 'city', 'state', 'zip', 'coordinates', 'streetAddress', 'name'])
+        .from('Station')
+        .where('stationID', req.body["startStationID"]);
+    
+    if (req.body["coordinates"]) {
+        query.select(db.raw('ST_DISTANCE_SPHERE(coordinates, POINT(?, ?)) / ? AS distanceInMiles', 
+            [req.body["coordinates"]["lng"], req.body["coordinates"]["lat"], METERS_IN_MILE]))
+    } 
+
+    let station = await query;
+
+    if (station[0]['coordinates']) {
+        station[0]["coordinates"]['lng'] = station[0]["coordinates"]['x'];
+        station[0]["coordinates"]['lat'] = station[0]["coordinates"]["y"];
+        delete station[0]["coordinates"]["x"];
+        delete station[0]["coordinates"]["y"];
+    }
+
+    station[0]["carsAvailable"] = carCount;
+    station[0]["costPerHour"] = 25;
+    
+    res.send(station);
+}
+
+module.exports = { getReservation, getReservations, createReservation, 
+        updateReservation, deleteReservation, getAvailableReservations};
