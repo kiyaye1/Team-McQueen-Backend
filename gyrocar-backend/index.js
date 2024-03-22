@@ -1,11 +1,14 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const signUp = require('./routes/signUp');
+const cors = require('cors');
 const jwt = require('jsonwebtoken');
-
 const app = express();
 
+// Use CORS package to allow requests from any domain
+app.use(cors())
+
 // Automatically parse request body
+
 app.use(express.json())
 app.use(express.urlencoded({extended: false}));
 app.use(cookieParser());
@@ -13,6 +16,9 @@ app.use(cookieParser());
 const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
 
 //Important to keep here so it gets called before login require middlewear is used
+const signUpRoute = require('./routes/signUp');
+app.use('/signup', signUpRoute);
+
 const loginRoute = require('./routes/login');
 app.use('/login', loginRoute);
 
@@ -43,12 +49,17 @@ app.use((req, res, next) => {
 // Defining route location
 
 const customersRoute = require('./routes/customers');
-const signUpRoute = require('./routes/signUp');
-
+const reservationsRoute = require('./routes/reservations');
+const stationsRoute = require('./routes/stations');
 
 // Bind requests to route
 app.use('/customers', customersRoute);
-app.use('/signup', signUpRoute);
+app.use('/reservations', reservationsRoute);
+app.use('/stations', stationsRoute);
+
+app.get("/", function(request, response){
+  response.send("API OK");
+});
 
 
 app.listen(8080, function () {

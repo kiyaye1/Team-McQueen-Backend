@@ -50,16 +50,11 @@ async function loginRequest(req, res){
     if(!employee && !user){
         loginResult = "Email Address Doesn't Exist";
     } else if(!employee && user){
-        let base64string = user.hashedPassword;
-        let bufferObj = Buffer.from(base64string, "base64");
-        let decodedString = bufferObj.toString("utf8");
-        loginResult = await bcrypt.compare(password,decodedString);
+        loginResult = await bcrypt.compare(password,user.hashedPassword);
         result = user;
     } else if(employee && !user){
-        let base64string = employee.hashedPassword;
-        let bufferObj = Buffer.from(base64string, "base64");
-        let decodedString = bufferObj.toString("utf8");
-        loginResult = await bcrypt.compare(password,decodedString);
+;
+        loginResult = await bcrypt.compare(password,employee.hashedPassword);
         result = employee;
     }
 
