@@ -70,7 +70,7 @@ async function loginRequest(req, res){
         }
         // Send token to client
         res.cookie('token', token, { httpOnly: true });
-        res.status(200).redirect('/home');
+        res.status(200).redirect('/');
 
     } else if(loginResult == "Email Address Doesn't Exist"){
         res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a real Email Address"});
