@@ -685,6 +685,14 @@ async function getAvailableReservations(req, res) {
         return res.status(400).send("startStationID is improperly formatted");
     }
 
+    if (!req.body["endStationID"]) {
+        req.body["endStationID"] = req.body["startStationID"];
+    }
+    req.body["endStationID"] = parseInt(req.body["endStationID"]);
+    if (!req.body["endStationID"]) {
+        return res.status(400).send("endStationID is improperly formatted");
+    }
+
     if (req.body["coordinates"]) {
         if (!req.body["coordinates"]["lat"] || !req.body["coordinates"]["lng"]) {
             return res.status(400).send("Coordinates are incorrectly formatted");
@@ -699,10 +707,10 @@ async function getAvailableReservations(req, res) {
     let carsAtStation = await db.select('carID').max('scheduledEndDatetime AS lastEnd')
         .from('CarReservation')
         .where('scheduledEndDatetime', '<', req.body["scheduledStartDatetime"])
-        .andWhere('endStationID', req.body["startStationID"])
+        .andWhere('endStationID', req.body["endStationID"])
         .groupBy('carID');
 
-    let carCount = 0;
+    let cars = [];
     let promises = [];
     carsAtStation.forEach(car => {
         // get the next reservation for the cars
@@ -713,10 +721,10 @@ async function getAvailableReservations(req, res) {
             .andWhere('scheduledStartDatetime', '>', dayjs(car.lastEnd).format('YYYY-MM-DD HH:mm:ss'))
             .then(function(result) {
                 if (result.carID === null) {
-                    carCount += 1;
+                    cars.push(car.carID);
                 }
                 else if (dayjs(result.nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"]) ) {
-                    carCount += 1;
+                    cars.push(car.carID);
                 }
             }));
     });
@@ -726,7 +734,7 @@ async function getAvailableReservations(req, res) {
     // collect the rest of the information needed for the response
     let query = db.select(['stationID', 'state', 'county', 'city', 'state', 'zip', 'coordinates', 'streetAddress', 'name'])
         .from('Station')
-        .where('stationID', req.body["startStationID"]);
+        .where('stationID', req.body["endStationID"]);
     
     if (req.body["coordinates"]) {
         query.select(db.raw('ST_DISTANCE_SPHERE(coordinates, POINT(?, ?)) / ? AS distanceInMiles', 
@@ -742,7 +750,7 @@ async function getAvailableReservations(req, res) {
         delete station[0]["coordinates"]["y"];
     }
 
-    station[0]["carsAvailable"] = carCount;
+    station[0]["carsAvailable"] = cars;
     station[0]["costPerHour"] = 25;
     
     res.send(station);
