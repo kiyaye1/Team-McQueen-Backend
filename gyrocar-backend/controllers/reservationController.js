@@ -1,6 +1,9 @@
 const db = require('../database');
 const validator = require("validator");
 
+const stripe = require('stripe')('sk_test_51OC3lZF33393XxHn73d30X9eRVrmyNb0L5oil5tATq4CleGApiF1ryNcIpEvgCi7VVsMAZVWktpwORUNxoVQJliJ00E1JPOfix');
+
+
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc')
 dayjs.extend(utc)
@@ -8,7 +11,7 @@ dayjs.extend(utc)
 const METERS_IN_MILE = 1609.344;
 
 const customerFields = [
-    "customerID", "firstName", "lastName", "middleInitial", "suffix",
+    "customerID", "firstName", "lastName", "middleInitial", "suffix", "stripeCustomerID",
     "createdDatetime", "phoneNumber", "emailAddress", "phoneVerified", "emailVerified",
     "driversLicenseNum", "driversLicenseState", "CustomerStatus.statusCode",
     "CustomerStatus.shortDescription", "CustomerStatus.longDescription"
@@ -299,6 +302,10 @@ async function createReservation(req, res) {
     }
     let carID = Number(req.body["carID"]);
 
+    if (!req.body["paymentMethodID"]) {
+        return res.status(400).send("Bad Request: paymentMethodID is required");
+    }
+
     // Check to make sure the customer, stations, and car
     // actually exist in the database so that there 
     // aren't any foreign key constraint issues
@@ -386,8 +393,18 @@ async function createReservation(req, res) {
         isComplete: 0
     }).into('CarReservation');
 
-    query.then(function (result) {
-        res.json({ reservationID: result[0] }); // send back to the autoi incremented reservationID
+    query.then(async function (result) {
+        
+        // create payment with stripe
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: 25 * dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours() * 100, // value in cents
+            currency: 'usd',
+            confirm: true,
+            confirmation_method: 'manual',
+            paymentMethod: req.body.paymentMethodID
+        });
+
+        res.json({ reservationID: result[0] }); // send back the auto incremented reservationID
     })
         .catch(function (err) {
             res.status(500).send("Unexpected server side error");
