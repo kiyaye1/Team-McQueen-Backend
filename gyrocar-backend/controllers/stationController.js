@@ -16,8 +16,8 @@ function renameCoordinates(obj) {
     // instead of the database default of x and y
     if (obj["coordinates"] != null) {
         if (obj["coordinates"]["x"] && obj["coordinates"]["y"]) {
-            obj["coordinates"]["lat"] = obj["coordinates"]["x"];
-            obj["coordinates"]["lng"] = obj["coordinates"]["y"];
+            obj["coordinates"]["lng"] = obj["coordinates"]["x"];
+            obj["coordinates"]["lat"] = obj["coordinates"]["y"];
 
             delete obj["coordinates"]["x"];
             delete obj["coordinates"]["y"];
