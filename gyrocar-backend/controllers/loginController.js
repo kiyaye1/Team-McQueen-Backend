@@ -11,7 +11,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 
 const loginEmployeeFields = ['employeeID', 'emailAddress', 'hashedPassword'];
-const loginCustomerFields = ['customerID', 'emailAddress', 'hashedPassword']
+const loginCustomerFields = ['customerID', 'emailAddress', 'hashedPassword'];
 
 //Change Eventually
 const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
@@ -60,17 +60,19 @@ async function loginRequest(req, res){
 
     if (loginResult == true) {
         
+        console.log("Login Successful!");
         let token = null;
 
         // If login is successful, create a token
         if(user){
-            token = jwt.sign({ emailAddress: result.emailAddress, customerID: result.customerID}, secret, { expiresIn: '6h' });
+            token = jwt.sign({isCustomer: false, customerID: result.customerID}, secret, { expiresIn: '6h' });
         } else{
-            token = jwt.sign({ emailAddress: result.emailAddress, employeeID: result.employeeID}, secret, { expiresIn: '6h' });
+            token = jwt.sign({isEmployee: false, EmployeeID: result.employeeID}, secret, { expiresIn: '6h' });
         }
         // Send token to client
-        res.cookie('token', token, { httpOnly: true });
-        res.status(200).redirect('/');
+        res.cookie('token', token, {maxAge: 21600000, sameSite: 'none', secure: true});
+        //res.redirect('http://localhost:3000');
+        res.sendStatus(200);
 
     } else if(loginResult == "Email Address Doesn't Exist"){
         res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a real Email Address"});
@@ -78,6 +80,5 @@ async function loginRequest(req, res){
         res.status(401).json({ error: "Invalid Login", errorDescription: "Please Enter a correct Password"});
     }
 }
-
 
 module.exports = { loginRequest };
