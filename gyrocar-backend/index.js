@@ -53,8 +53,19 @@ app.use((req, res, next) => {
 });
 
 const loginInfoRoute = require('./routes/loginInfo');
-app.use('/loginInfo', loginInfoRoute);
+const customersRoute = require('./routes/customers');
+const reservationsRoute = require('./routes/reservations');
+const stationsRoute = require('./routes/stations');
 
+// Bind requests to route
+app.use('/loginInfo', loginInfoRoute);
+app.use('/customers', customersRoute);
+app.use('/reservations', reservationsRoute);
+app.use('/stations', stationsRoute);
+
+app.get("/", function(request, response){
+  response.send("API OK");
+});
 
 app.listen(8080, () => {
     console.log('listening on port 8080');
