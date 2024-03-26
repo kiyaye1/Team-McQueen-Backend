@@ -1,8 +1,10 @@
     const express = require('express');
 const router = express.Router();
 
-const db = require('../database');
 const customerController = require('../controllers/customerController');
+const customerPaymentController = require('../controllers/customerPaymentController');
+
+router.get('/:customer_id/payments', customerPaymentController.getCustomerPayments);
 
 router.get('/:customer_id', customerController.getCustomer);
 router.get('/', customerController.getCustomers)

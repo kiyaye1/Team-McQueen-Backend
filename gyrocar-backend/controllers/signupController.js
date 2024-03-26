@@ -6,6 +6,9 @@ const validator = require("validator");
 const { isValid } = require('usdl-regex');
 const valid = require("card-validator");
 
+const stripe = require('stripe')('sk_test_51OC3lZF33393XxHn73d30X9eRVrmyNb0L5oil5tATq4CleGApiF1ryNcIpEvgCi7VVsMAZVWktpwORUNxoVQJliJ00E1JPOfix');
+
+
 const dayjs = require('dayjs');
 const timezone = require('dayjs/plugin/timezone');
 const utc = require('dayjs/plugin/utc');
@@ -28,14 +31,13 @@ const namePattern = /^[a-z ,.'-]+$/i;
 const signUp = async(req, res) => {
 
     //Create sql insert statement
-    const sql = "INSERT INTO Customer (firstName, lastName, middleInitial, suffix, statusCode, username, hashedPassword, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    const sql = "INSERT INTO Customer (firstName, lastName, middleInitial, suffix, statusCode, hashedPassword, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     
     //Get customer information
     const firstName = req.body.firstName;
     const lastName = req.body.lastName;
     const middleInitial = req.body.middleInitial;
     const suffix = req.body.suffix;
-    const username = req.body.username;
     const hashedPassword = req.body.hashedPassword;
     const phoneNumber = req.body.phoneNumber; 
     const emailAddress = req.body.emailAddress;
@@ -91,8 +93,6 @@ const signUp = async(req, res) => {
         return;
     }
 
-
-
     //Check if the password can be considered a strong password or not 
     //[minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1]
     if((validator.isStrongPassword(hashedPassword)) != true) {
@@ -102,7 +102,7 @@ const signUp = async(req, res) => {
 
     //Check whether the retyped password matches the password given or not
     if((validator.equals(hashedPassword, retypedPassword)) != true) {
-        res.status(400).send("Error");
+        res.status(400).send("Password doesn't match");
         return;
     }
     console.log(hashedPassword)
@@ -113,7 +113,7 @@ const signUp = async(req, res) => {
             console.log(err);
         }
         //Insert customer data into the database
-        db.query(sql, [firstName, lastName, middleInitial, suffix, statusCode, username, hash, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress], (err, data) => {
+        db.query(sql, [firstName, lastName, middleInitial, suffix, statusCode, hash, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress], (err, data) => {
             if (err) return res.status(400).send("Error");
             return res.json({
                 customerID: data.insertId
@@ -168,84 +168,60 @@ const postCCI = async(req, res) => {
 
     const customerID = req.params['customer_id'];
     // check to make sure customerID exists
-    let result = await new Promise((resolve, reject) => {
-        db.query('SELECT customerID FROM Customer WHERE customerID = ?', [customerID], (err, result) => {
+    let customer = await new Promise((resolve, reject) => {
+        db.query('SELECT customerID, firstName, lastName, emailAddress, phoneNumber FROM Customer WHERE customerID = ?', [customerID], (err, result) => {
             resolve(result);
         })
     });
-    if (result.length != 1) {
+    if (customer.length != 1) {
         return res.status(400).send("customerID does not exist");
     }
+    customer = customer[0];
+
+    if (!req.body.cardToken) {
+        return res.status(400).send('cardToken is required');
+    }
+    const cardToken = validator.trim(req.body.cardToken);
     
-    //Get the credit card information
-    const cardholderName = req.body.cardholderName;
-    const creditCardNumberHash = req.body.creditCardNumberHash;
-    const expirationDate = req.body.expirationDate;
-    const securityCodeHash = req.body.securityCodeHash;
+    try {
+        const stripeCustomer = await stripe.customers.create({
+            email: customer.emailAddress,
+            name: `${customer.firstName} ${customer.lastName}`,
+            phone: customer.phoneNumber
+        });
 
-    //Prepare the card expiration date for validation
-    let newExpDate = expirationDate.slice(0, 2) + "-20" + expirationDate.slice(2);
-    const expDateArray = newExpDate.split("-");
-    let expMonth = expDateArray[0];
-    let expYear = expDateArray[1];
-
-    //Validate credit card holder name using the regex pattern - namePattern 
-    if((namePattern.test(validator.trim(cardholderName))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate credit card number 
-    if(valid.number(creditCardNumberHash).isValid != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate card expiration date 
-    if(valid.expirationDate(expirationDate, expYear).isValid != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate card security code 
-    if(valid.cvv(securityCodeHash).isValid != true) {
-        res.status(400).send("Error");
-        return;
-    } 
-
-    //Create sql select statement to fetch customerID
-    const sqlCI = "SELECT customerID FROM Customer WHERE customerID = ?";
-
-    //Fetch customerID from the table Customer in the database
-    db.query(sqlCI, [customerID], (err, data) => {
-        if (data.length == 0 || err) {
-            res.status(400).send("Error");
-            return
-        }
-        
-        //Create sql insert statement
-        const sqlCCI = "INSERT INTO CustomerPayment (customerID, cardholderName, creditCardNumberHash, expirationDate, securityCodeHash) VALUES (?, ?, ?, ?, ?)";
-
-        //Hash the card number 
-        bcrypt.hash(creditCardNumberHash, saltRounds, (err, hashCC) => {
+        // save stripe customer id to database
+        const sql = 'UPDATE Customer SET stripeCustomerID = ? WHERE customerID = ?';
+        let storeIDResult = db.query(sql, [stripeCustomer.id, customerID], (err, result) => {
             if (err) {
-                console.log(err);
+                return false;
             }
+            return true;
+        });
 
-            //Hash the security code
-            bcrypt.hash(securityCodeHash, saltRounds, (err, hashCV) => {
-                if (err) {
-                    console.log(err);
-                }
-                    
-                //Add the credit card information into the table Customer in the database
-                db.query(sqlCCI, [data[0].customerID, cardholderName, hashCC, expirationDate, hashCV], (err, result) => {
-                    if (err) return res.status(400).json("Error");
-                    return res.send("Customer payment information updated successfully");       
-                }); 
-            });
-        }); 
-    }); 
+        // attach card token to customer
+        const paymentMethod = await stripe.paymentMethods.create({
+            type: 'card',
+            card: {
+              token: cardToken,
+            },
+        });
+      
+        // Attach the payment method to the customer
+        await stripe.paymentMethods.attach(paymentMethod.id, {
+            customer: stripeCustomer.id,
+        });
+        
+        // ensure db update was successful
+        if (!await Promise.resolve(storeIDResult)) {
+            return res.status(500).send('Error creating customer');
+        }
+
+        return res.send('Customer payment information updated successfully');
+
+    } catch (error) {
+        res.status(500).send('Error creating customer');
+    }
 };
 
 module.exports = {signUp, updateWdl, postCCI}
