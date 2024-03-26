@@ -21,7 +21,7 @@ const reservationFields = ["reservationID", "startStationID", "endStationID", "c
     "customerID", "scheduledEndDatetime", "actualStartDatetime", "actualEndDatetime", "isComplete"];
 
 const createReservationFields = ["startStationID", "endStationID", "carID", "scheduledStartDatetime",
-    "customerID", "scheduledEndDatetime"];
+    "customerID", "scheduledEndDatetime", "paymentMethodID"];
 
 // full list of fields needed for getting all reservation
 // information with full column names with tables becuase
@@ -396,6 +396,7 @@ async function createReservation(req, res) {
     query.then(async function (result) {
         
         // create payment with stripe
+        // TODO: get the most recent hourly rate for the car
         const paymentIntent = await stripe.paymentIntents.create({
             amount: 25 * dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours() * 100, // value in cents
             currency: 'usd',
@@ -403,6 +404,9 @@ async function createReservation(req, res) {
             confirmation_method: 'manual',
             paymentMethod: req.body.paymentMethodID
         });
+
+        // TODO: save the transaction into the database
+
 
         res.json({ reservationID: result[0] }); // send back the auto incremented reservationID
     })

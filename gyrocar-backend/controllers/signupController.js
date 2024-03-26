@@ -31,14 +31,13 @@ const namePattern = /^[a-z ,.'-]+$/i;
 const signUp = async(req, res) => {
 
     //Create sql insert statement
-    const sql = "INSERT INTO Customer (firstName, lastName, middleInitial, suffix, statusCode, username, hashedPassword, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    const sql = "INSERT INTO Customer (firstName, lastName, middleInitial, suffix, statusCode, hashedPassword, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     
     //Get customer information
     const firstName = req.body.firstName;
     const lastName = req.body.lastName;
     const middleInitial = req.body.middleInitial;
     const suffix = req.body.suffix;
-    const username = req.body.username;
     const hashedPassword = req.body.hashedPassword;
     const phoneNumber = req.body.phoneNumber; 
     const emailAddress = req.body.emailAddress;
@@ -94,22 +93,22 @@ const signUp = async(req, res) => {
         return;
     }
 
-    //Validate whether username is provided or not
-    if ((validator.isEmpty(validator.trim(username))) === true) {
-        res.status(400).send("Error");
-        return;
-    }
+    // //Validate whether username is provided or not
+    // if ((validator.isEmpty(validator.trim(username))) === true) {
+    //     res.status(400).send("Error");
+    //     return;
+    // }
 
-    //Validate username uniqueness
-    const sqlUserName = 'SELECT COUNT(*) AS countUserName FROM Customer WHERE username = ?';
-    result = await new Promise((resolve, reject) => {
-        db.query(sqlUserName, [username], (err, result) => {
-            resolve(result);
-        });
-    });
-    if (result[0].countUserName >= 1) {
-        return res.status(400).send("Username is not unique");
-    }
+    // //Validate username uniqueness
+    // const sqlUserName = 'SELECT COUNT(*) AS countUserName FROM Customer WHERE username = ?';
+    // result = await new Promise((resolve, reject) => {
+    //     db.query(sqlUserName, [username], (err, result) => {
+    //         resolve(result);
+    //     });
+    // });
+    // if (result[0].countUserName >= 1) {
+    //     return res.status(400).send("Username is not unique");
+    // }
 
     //Check if the password can be considered a strong password or not 
     //[minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1]
@@ -120,7 +119,7 @@ const signUp = async(req, res) => {
 
     //Check whether the retyped password matches the password given or not
     if((validator.equals(hashedPassword, retypedPassword)) != true) {
-        res.status(400).send("Error");
+        res.status(400).send("Password doesn't match");
         return;
     }
 
@@ -130,7 +129,7 @@ const signUp = async(req, res) => {
             console.log(err);
         }
         //Insert customer data into the database
-        db.query(sql, [firstName, lastName, middleInitial, suffix, statusCode, username, hash, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress], (err, data) => {
+        db.query(sql, [firstName, lastName, middleInitial, suffix, statusCode, hash, createdDatetime, phoneNumber, emailAddress, phoneVerified, emailVerified, mailingAddress], (err, data) => {
             if (err) return res.status(400).send("Error");
             return res.json({
                 customerID: data.insertId
