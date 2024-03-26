@@ -5,6 +5,8 @@ const stripe = require('stripe')('sk_test_51OC3lZF33393XxHn73d30X9eRVrmyNb0L5oil
 
 
 const dayjs = require('dayjs');
+const duration = require('dayjs/plugin/duration');
+dayjs.extend(duration);
 const utc = require('dayjs/plugin/utc')
 dayjs.extend(utc)
 
@@ -401,8 +403,12 @@ async function createReservation(req, res) {
             amount: 25 * dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours() * 100, // value in cents
             currency: 'usd',
             confirm: true,
-            confirmation_method: 'manual',
-            paymentMethod: req.body.paymentMethodID
+            payment_method: req.body.paymentMethodID,
+            customer: customer.stripeCustomerID,
+            automatic_payment_methods: {
+                enabled: true,
+                allow_redirects: 'never'
+            }
         });
 
         // TODO: save the transaction into the database
