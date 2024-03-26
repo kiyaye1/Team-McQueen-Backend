@@ -93,23 +93,6 @@ const signUp = async(req, res) => {
         return;
     }
 
-    // //Validate whether username is provided or not
-    // if ((validator.isEmpty(validator.trim(username))) === true) {
-    //     res.status(400).send("Error");
-    //     return;
-    // }
-
-    // //Validate username uniqueness
-    // const sqlUserName = 'SELECT COUNT(*) AS countUserName FROM Customer WHERE username = ?';
-    // result = await new Promise((resolve, reject) => {
-    //     db.query(sqlUserName, [username], (err, result) => {
-    //         resolve(result);
-    //     });
-    // });
-    // if (result[0].countUserName >= 1) {
-    //     return res.status(400).send("Username is not unique");
-    // }
-
     //Check if the password can be considered a strong password or not 
     //[minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1]
     if((validator.isStrongPassword(hashedPassword)) != true) {
@@ -122,9 +105,10 @@ const signUp = async(req, res) => {
         res.status(400).send("Password doesn't match");
         return;
     }
-
+    console.log(hashedPassword)
     //Hash the password 
     bcrypt.hash(hashedPassword, saltRounds, (err, hash) => {
+        console.log(hash)
         if (err) {
             console.log(err);
         }

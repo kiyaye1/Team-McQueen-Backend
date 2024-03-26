@@ -741,10 +741,10 @@ async function getAvailableReservations(req, res) {
             .where('carID', car.carID)
             .andWhere('scheduledStartDatetime', '>', dayjs(car.lastEnd).format('YYYY-MM-DD HH:mm:ss'))
             .then(function(result) {
-                if (result.carID === null) {
+                if (result[0].carID === null) {
                     cars.push(car.carID);
                 }
-                else if (dayjs(result.nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"]) ) {
+                else if (dayjs(result[0].nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"]) ) {
                     cars.push(car.carID);
                 }
             }));
