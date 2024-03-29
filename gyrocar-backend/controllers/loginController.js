@@ -87,6 +87,7 @@ async function loginRequest(req, res){
             token = jwt.sign({role: employeeRole.roleID, userID: result.employeeID}, secret, { expiresIn: '6h' });
         }
         // Send token to client
+
         res.cookie('token', token, {maxAge: 21600000, sameSite: 'none', secure: true});
         //res.redirect('http://localhost:3000');
         res.sendStatus(200);
