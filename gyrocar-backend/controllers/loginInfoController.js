@@ -1,7 +1,8 @@
-async function getID(req, res){
-    console.log(req.tokenID);
+async function getInfo(req, res){
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ID: req.tokenID }));
+    res.end(JSON.stringify({ID: req.userID, role: req.role}));
 }
 
-module.exports = { getID };
+
+
+module.exports = {getInfo};

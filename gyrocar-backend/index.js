@@ -41,11 +41,8 @@ app.use((req, res, next) => {
         const decoded = jwt.verify(token, secret);
 
         //add userId to the request
-        if(decoded.employeeID != null){
-            req.tokenID = decoded.employeeID;
-        } else{
-            req.tokenID = decoded.customerID;
-        }
+            req.userID = decoded.userID;
+            req.role = decoded.role;
         next();
     } catch(error){
         res.status(401).json({ error: 'Invalid token', errorDescription: 'Token is invalid' });
