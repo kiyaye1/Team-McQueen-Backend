@@ -10,8 +10,8 @@ const jwt = require('jsonwebtoken');
 
 const bcrypt = require('bcrypt');
 
-const loginEmployeeFields = ['employeeID', 'emailAddress', 'hashedPassword'];
-const loginCustomerFields = ['customerID', 'emailAddress', 'hashedPassword'];
+//const loginEmployeeFields = ['employeeID', 'emailAddress', 'hashedPassword'];
+//const loginCustomerFields = ['customerID', 'emailAddress', 'hashedPassword'];
 
 //Change Eventually
 const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
@@ -19,7 +19,7 @@ const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
 async function loginRequest(req, res){
     const { emailAddress, password } = req.body;
     // Call the Login function from the business layer
-    employee = await db.select(loginEmployeeFields)
+    employee = await db.select('*')
         .from("Employee")
         .where("emailAddress", emailAddress)
         .then(function (result) {
@@ -28,12 +28,13 @@ async function loginRequest(req, res){
             }
 
             result = Object.assign({}, result[0]);
+            console.log(result);
             return result;
         })
         .catch(function (err) {
             res.sendStatus(500);
         });
-    user = await db.select(loginCustomerFields)
+    user = await db.select('*')
         .from('Customer')
         .where('emailAddress', emailAddress)
         .then(function (result) {
@@ -41,6 +42,7 @@ async function loginRequest(req, res){
                 return null;
             }
             result = Object.assign({}, result[0]);
+            console.log(result);
             return result;
         })
         .catch(function (err) {
@@ -68,8 +70,8 @@ async function loginRequest(req, res){
         //2 = Customer Service
         //3 = Mechanic
         //4 = Manager
-        if(user){
-            token = jwt.sign({role: 0, userID: result.customerID}, secret, { expiresIn: '6h' });
+        if(user){         
+            token = jwt.sign({role: 0, userID: user.customerID, firstName: user.firstName, lastName: user.lastName, emailAddress: user.emailAddress, xtra: user.phoneNumber}, secret, { expiresIn: '6h' });
         } else{
             let employeeRole = await db.select('roleID')
             .from('EmployeeRole')
@@ -84,10 +86,9 @@ async function loginRequest(req, res){
             .catch(function (err) {
                 res.sendStatus(500);
             });
-            token = jwt.sign({role: employeeRole.roleID, userID: result.employeeID}, secret, { expiresIn: '6h' });
+            token = jwt.sign({role: employeeRole.roleID, userID: employee.employeeID, firstName: employee.firstName, lastName: employee.lastName, emailAddress: employee.emailAddress, xtra: employee.title}, secret, { expiresIn: '6h' });
         }
         // Send token to client
-
         res.cookie('token', token, {maxAge: 21600000, sameSite: 'none', secure: true});
         //res.redirect('http://localhost:3000');
         res.sendStatus(200);
@@ -98,4 +99,11 @@ async function loginRequest(req, res){
     }
 }
 
-module.exports = { loginRequest };
+const logout = async(req, res) => {
+    res.cookie('token', '', { httpOnly: true, expires: new Date(0) });
+    res.status(200).json({ message: 'Logged out successfully' });   
+}
+
+module.exports = { loginRequest, logout };
+
+
