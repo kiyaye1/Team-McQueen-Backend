@@ -3,6 +3,8 @@ const database = require('./database');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const session = require('express-session');
+require('dotenv').config();
 const app = express();
 
 // Use CORS package to allow requests from specified origins
@@ -21,12 +23,26 @@ app.use(cookieParser());
 
 const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
 
+
+//const contactsRoute = require('./routes/contacts');
+//app.use('/contacts', contactsRoute);
+
 //Important to keep here so it gets called before login require middlewear is used
 const signUpRoute = require('./routes/signUp');
 app.use('/signup', signUpRoute);
 
 const loginRoute = require('./routes/login');
 app.use('/login', loginRoute);
+
+app.use(session({
+    secret: 'gyrocar_secret_key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: false, 
+        maxAge: 24 * 60 * 60 * 1000 
+    }
+}));
 
 // Middleware to verify JWT token
 app.use((req, res, next) => {
@@ -42,33 +58,22 @@ app.use((req, res, next) => {
         req.lastName = decoded.lastName; 
         req.emailAddress = decoded.emailAddress; 
         req.xtra = decoded.xtra;
+
+        req.session.user = { userID: req.userID, role: req.role, firstName: req.firstName, lastName: req.lastName, emailAddress: req.emailAddress, xtra: req.xtra };
+
         next();
+
     } catch(error){
         res.status(401).json({ error: 'Invalid token', errorDescription: 'Token is invalid' });
     }
 });
 
-// Refresh token endpoint
 app.get('/refresh', (req, res) => {
-    const token = req.cookies.token;
-    if (!token) {
-        return res.status(401).json({ error: 'No token provided', errorDescription: 'Token is required for authentication.' });
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'Not authenticated', errorDescription: 'Please log in.' });
     }
-    
-    jwt.verify(token, secret, (err, decoded) => {
-        if (err) {
-            return res.status(401).json({ error: 'Invalid token', errorDescription: 'Failed to authenticate token.' });
-        }
-        const userInfo = {
-            userID: decoded.userID,
-            role: decoded.role,
-            firstName: decoded.firstName,
-            lastName: decoded.lastName,
-            emailAddress: decoded.emailAddress,
-            xtra: decoded.xtra,
-        };
-        res.json(userInfo);
-    });
+    // User is authenticated, session is active
+    res.json(req.session.user);
 });
 
 const loginInfoRoute = require('./routes/loginInfo');
