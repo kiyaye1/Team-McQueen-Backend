@@ -2,12 +2,10 @@ const express = require('express');
 const db = require('../database');
 
 //******************************************************************************************************** */
-
-//The logout logic to destroy the session
-const getEmployeesTotal = async(req, res) => {
+//The logic to get total number of employees
+const getTotalNumOfEmployees = async(req, res) => {
     db('Employee').count('* as total')
     .then(result => {
-        console.log('Total number of records:', result[0].total);
         res.json(JSON.stringify(result[0].total));
     })
     .catch(error => {
@@ -17,12 +15,10 @@ const getEmployeesTotal = async(req, res) => {
 //******************************************************************************************************** */
 
 //******************************************************************************************************** */
-
-//The logout logic to destroy the session
-const getCustomersTotal = async(req, res) => {
+//The logic to get total number of customers
+const getTotalNumOfCustomers = async(req, res) => {
     db('Customer').count('* as total')
     .then(result => {
-        console.log('Total number of records:', result[0].total);
         res.json(JSON.stringify(result[0].total));
     })
     .catch(error => {
@@ -31,5 +27,31 @@ const getCustomersTotal = async(req, res) => {
 }
 //******************************************************************************************************** */
 
-module.exports = {getEmployeesTotal, getCustomersTotal}
+//******************************************************************************************************** */
+//The logic to get total number of cars
+const getTotalNumOfCars = async(req, res) => {
+    db('Car').count('* as total')
+    .then(result => {
+        res.json(JSON.stringify(result[0].total));
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    })
+}
+//******************************************************************************************************** */
+
+//******************************************************************************************************** */
+//The logic to get total number of stations
+const getTotalNumOfStations = async(req, res) => {
+    db('Station').count('* as total')
+    .then(result => {
+        res.json(JSON.stringify(result[0].total));
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    })
+}
+//******************************************************************************************************** */
+
+module.exports = {getTotalNumOfEmployees, getTotalNumOfCustomers, getTotalNumOfCars, getTotalNumOfStations}
 

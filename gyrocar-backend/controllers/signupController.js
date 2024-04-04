@@ -6,8 +6,7 @@ const validator = require("validator");
 const { isValid } = require('usdl-regex');
 const valid = require("card-validator");
 
-const stripe = require('stripe')('sk_test_51OC3lZF33393XxHn73d30X9eRVrmyNb0L5oil5tATq4CleGApiF1ryNcIpEvgCi7VVsMAZVWktpwORUNxoVQJliJ00E1JPOfix');
-
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const dayjs = require('dayjs');
 const timezone = require('dayjs/plugin/timezone');

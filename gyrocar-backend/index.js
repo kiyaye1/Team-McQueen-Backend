@@ -1,81 +1,93 @@
+// Importing necessary modules
 const express = require('express');
-const database = require('./database');
-const cookieParser = require('cookie-parser');
+//const database = require('./database');
+const cookieParser = require('cookie-parser'); 
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
-const session = require('express-session');
+const jwt = require('jsonwebtoken'); 
 require('dotenv').config();
-const app = express();
+const path = require('path');
+const app = express(); 
 
-// Use CORS package to allow requests from specified origins
+// Configuring CORS to allow requests from specified origins for increased security
 const allowedOrigins = ['http://localhost:3000', 'http://localhost:8080', 'https://api.mcqueen-gyrocar.com'];
-app.use(cors({ credentials: true, origin: (origin, callback) => {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-    } else {
-        callback(new Error('The CORS policy for this site does not allow access from the specified origin.'), false);
-    }
-}}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-
-const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
-
-
-//const contactsRoute = require('./routes/contacts');
-//app.use('/contacts', contactsRoute);
-
-//Important to keep here so it gets called before login require middlewear is used
-const signUpRoute = require('./routes/signUp');
-app.use('/signup', signUpRoute);
-
-const loginRoute = require('./routes/login');
-app.use('/login', loginRoute);
-
-app.use(session({
-    secret: 'gyrocar_secret_key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: false, 
-        maxAge: 24 * 60 * 60 * 1000 
+app.use(cors({ 
+    credentials: true, // Allows servers to specify whether or not to use credentials
+    origin: (origin, callback) => {
+        // Check if the origin of the request is in the list of allowed origins
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('The CORS policy for this site does not allow access from the specified origin.'), false);
+        }
     }
 }));
 
-// Middleware to verify JWT token
+// Middlewares for parsing request bodies and cookies
+app.use(express.json()); 
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser()); 
+
+// Environment variables for JWT secret and server port
+const secret = process.env.JWT_SECRET;
+const port = process.env.PORT;
+
+// Route handlers for contact us path
+const contactsRoute = require('./routes/contacts');
+app.use('/contacts', contactsRoute);
+
+// Signup route, important to keep here before login middleware to allow access
+const signUpRoute = require('./routes/signUp');
+app.use('/signup', signUpRoute);
+
+// Login route
+const loginRoute = require('./routes/login');
+app.use('/login', loginRoute);
+
+// Middleware for token verification and attaching user details to the request object
 app.use((req, res, next) => {
-    const token  = req.cookies.token;
+    const token  = req.cookies.token; // Extract token from cookies
     if (!token) {
         return res.status(401).json({ error: 'No token provided', errorDescription: 'Token is required' });
     }
-    try{
+    try {
+        // Verifying token
         const decoded = jwt.verify(token, secret);
+        // Attaching decoded user details to the request object
         req.userID = decoded.userID;
         req.role = decoded.role;
         req.firstName = decoded.firstName; 
         req.lastName = decoded.lastName; 
         req.emailAddress = decoded.emailAddress; 
         req.xtra = decoded.xtra;
-
-        req.session.user = { userID: req.userID, role: req.role, firstName: req.firstName, lastName: req.lastName, emailAddress: req.emailAddress, xtra: req.xtra };
-
         next();
-
-    } catch(error){
+    } catch(error) {
         res.status(401).json({ error: 'Invalid token', errorDescription: 'Token is invalid' });
     }
 });
 
+// Endpoint for refreshing tokens
 app.get('/refresh', (req, res) => {
-    if (!req.session.user) {
-        return res.status(401).json({ error: 'Not authenticated', errorDescription: 'Please log in.' });
+    const token = req.cookies.token;
+    if (!token) {
+        return res.status(401).json({ error: 'No token provided', errorDescription: 'Token is required for authentication.' });
     }
-    // User is authenticated, session is active
-    res.json(req.session.user);
+    jwt.verify(token, secret, (err, decoded) => {
+        if (err) {
+            return res.status(401).json({ error: 'Invalid token', errorDescription: 'Failed to authenticate token.' });
+        }
+        const userInfo = {
+            userID: decoded.userID,
+            role: decoded.role,
+            firstName: decoded.firstName,
+            lastName: decoded.lastName,
+            emailAddress: decoded.emailAddress,
+            xtra: decoded.xtra,
+        };
+        res.json(userInfo);
+    });
 });
 
+// More route handlers for other parts of the application
 const loginInfoRoute = require('./routes/loginInfo');
 const customersRoute = require('./routes/customers');
 const employeesRoute = require('./routes/employees');
@@ -90,11 +102,13 @@ app.use('/reservations', reservationsRoute);
 app.use('/stations', stationsRoute);
 app.use('/admindashtotals', adminDashTotalsRoute);
 
-// Root endpoint
+// Root endpoint to quickly check if the API is running
 app.get("/", (request, response) => {
     response.send("API OK");
 });
 
-app.listen(8080, () => {
-    console.log('Listening on port 8080');
+// Starting the server on the specified port
+app.listen(port, () => {
+    console.log(`Listening on port ${port}`);
 });
+
