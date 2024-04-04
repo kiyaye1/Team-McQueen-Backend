@@ -398,9 +398,11 @@ async function createReservation(req, res) {
     query.then(async function (result) {
         
         // create payment with stripe
-        // TODO: get the most recent hourly rate for the car
+        // get the most recent hourly rate for the car
+        const latestHourlyRate = await db.select('hourlyRate').from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
+        latestHourlyRate = latestHourlyRate[0].hourlyRate
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: 25 * dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours() * 100, // value in cents
+            amount: latestHourlyRate * dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours() * 100, // value in cents
             currency: 'usd',
             confirm: true,
             payment_method: req.body.paymentMethodID,
@@ -734,7 +736,7 @@ async function getAvailableReservations(req, res) {
     let carsAtStation = await db.select('carID').max('scheduledEndDatetime AS lastEnd')
         .from('CarReservation')
         .where('scheduledEndDatetime', '<', req.body["scheduledStartDatetime"])
-        .andWhere('endStationID', req.body["endStationID"])
+        .andWhere('endStationID', req.body["startStationID"])
         .groupBy('carID');
 
     let cars = [];
@@ -742,7 +744,7 @@ async function getAvailableReservations(req, res) {
     carsAtStation.forEach(car => {
         // get the next reservation for the cars
         // that will be at the station
-        promises.push(db.select('carID').min('scheduledStartDatetime AS nextStart')
+        promises.push(db.select(['carID', 'startStationID']).min('scheduledStartDatetime AS nextStart')
             .from('CarReservation')
             .where('carID', car.carID)
             .andWhere('scheduledStartDatetime', '>', dayjs(car.lastEnd).format('YYYY-MM-DD HH:mm:ss'))
@@ -750,7 +752,8 @@ async function getAvailableReservations(req, res) {
                 if (result[0].carID === null) {
                     cars.push(car.carID);
                 }
-                else if (dayjs(result[0].nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"]) ) {
+                else if (dayjs(result[0].nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"])
+                    && result[0].startStationID == req.body["endStationID"] ) {
                     cars.push(car.carID);
                 }
             }));
