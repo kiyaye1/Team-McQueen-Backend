@@ -395,14 +395,17 @@ async function createReservation(req, res) {
         isComplete: 0
     }).into('CarReservation');
 
-    query.then(async function (result) {
+    query.then(async function (reservationResult) {
         
         // create payment with stripe
         // get the most recent hourly rate for the car
-        const latestHourlyRate = await db.select('hourlyRate').from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
-        latestHourlyRate = latestHourlyRate[0].hourlyRate
+        const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
+
+        const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
+        const totalCost = latestHourlyRate * reservationDuration;
+
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: latestHourlyRate * dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours() * 100, // value in cents
+            amount: totalCost * 100, // value in cents
             currency: 'usd',
             confirm: true,
             payment_method: req.body.paymentMethodID,
@@ -413,10 +416,26 @@ async function createReservation(req, res) {
             }
         });
 
-        // TODO: save the transaction into the database
+        // save the transaction into the database
+        let currentDatetime = dayjs.utc().format('YYYY-MM-DD hh:mm:ss');
+        let paymentInsert = await db.insert(
+                {
+                    customerID: customerID,
+                    reservationID: reservationResult[0],
+                    transactionHandler: "Stripe",
+                    paymentStatusID: 3, // completed
+                    datetimeStarted: currentDatetime,
+                    datetimeComplete:  currentDatetime,
+                    hourlyRateID: latestHourlyRate[0].hourlyRateID,
+                    hours: reservationDuration,
+                    rentalAmount: totalCost,
+                    damageAmount: 0,
+                    totalAmount: totalCost
+                }
+            ).into('PaymentTransaction');
 
 
-        res.json({ reservationID: result[0] }); // send back the auto incremented reservationID
+        res.json({ reservationID: reservationResult[0] }); // send back the auto incremented reservationID
     })
         .catch(function (err) {
             res.status(500).send("Unexpected server side error");
