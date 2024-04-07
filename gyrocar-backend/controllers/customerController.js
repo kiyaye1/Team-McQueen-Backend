@@ -153,6 +153,8 @@ async function updateCustomer(req, res) {
     }
 
     if (req.body['customerID']) delete req.body['customerID'] // don't allow editing the customerID
+    if (req.body['phoneVerified']) delete req.body['phoneVerified'] // don't allow editing the phoneVerified field
+    if (req.body['emailVerified']) delete req.body['emailVerified'] // don't allow editing the emailVerified field
 
 
     // if they are trying to edit the email address

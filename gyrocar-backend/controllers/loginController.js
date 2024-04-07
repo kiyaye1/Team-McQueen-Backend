@@ -10,11 +10,13 @@ const jwt = require('jsonwebtoken');
 
 const bcrypt = require('bcrypt');
 
+require('dotenv').config();
+
 //const loginEmployeeFields = ['employeeID', 'emailAddress', 'hashedPassword'];
 //const loginCustomerFields = ['customerID', 'emailAddress', 'hashedPassword'];
 
 //Change Eventually
-const secret = `s/[BQ|x8(}-)TW|Fkl-{)pvXrnGH`;
+const secret = process.env.JWT_SECRET;
 
 async function loginRequest(req, res){
     const { emailAddress, password } = req.body;

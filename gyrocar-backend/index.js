@@ -93,6 +93,7 @@ const customersRoute = require('./routes/customers');
 const employeesRoute = require('./routes/employees');
 const reservationsRoute = require('./routes/reservations');
 const stationsRoute = require('./routes/stations');
+const carsRoute = require('./routes/cars');
 const adminDashTotalsRoute = require('./routes/adminDashTotals');
 
 app.use('/loginInfo', loginInfoRoute);
@@ -100,6 +101,7 @@ app.use('/customers', customersRoute);
 app.use('/employees', employeesRoute);
 app.use('/reservations', reservationsRoute);
 app.use('/stations', stationsRoute);
+app.use('/cars', stationsRoute);
 app.use('/admindashtotals', adminDashTotalsRoute);
 
 // Root endpoint to quickly check if the API is running
