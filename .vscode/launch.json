@@ -11,7 +11,8 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\gyrocar-backend\\index.js"
+            "program": "${workspaceFolder}\\gyrocar-backend\\index.js",
+            "cwd": "${workspaceFolder}\\gyrocar-backend"
         }
     ]
 }
