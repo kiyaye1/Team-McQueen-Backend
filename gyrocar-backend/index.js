@@ -101,7 +101,7 @@ app.use('/customers', customersRoute);
 app.use('/employees', employeesRoute);
 app.use('/reservations', reservationsRoute);
 app.use('/stations', stationsRoute);
-app.use('/cars', stationsRoute);
+app.use('/cars', carsRoute);
 app.use('/admindashtotals', adminDashTotalsRoute);
 
 // Root endpoint to quickly check if the API is running
