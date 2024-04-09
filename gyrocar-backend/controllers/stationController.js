@@ -8,7 +8,7 @@ const db = require('../database');
 
 const METERS_IN_MILE = 1609.344;
 
-const stationFields = ['stationID', 'country', 'state', 'county', 'city', 'zip', 'coordinates', 'streetAddress'];
+const stationFields = ['stationID', 'country', 'state', 'county', 'city', 'zip', 'coordinates', 'streetAddress', 'name'];
 
 function renameCoordinates(obj) {
     // If the result has coordinate values
