@@ -9,7 +9,7 @@ const path = require('path');
 const app = express(); 
 
 // Configuring CORS to allow requests from specified origins for increased security
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:8080', 'https://api.mcqueen-gyrocar.com', 'https://mcqueen-gyrocar.com'];
+const allowedOrigins = ['http://localhost:3000', 'http://localhost:8080', 'https://api.mcqueen-gyrocar.com'];
 app.use(cors({ 
     credentials: true, // Allows servers to specify whether or not to use credentials
     origin: (origin, callback) => {
@@ -95,6 +95,8 @@ const reservationsRoute = require('./routes/reservations');
 const stationsRoute = require('./routes/stations');
 const carsRoute = require('./routes/cars');
 const adminDashTotalsRoute = require('./routes/adminDashTotals');
+const appmetricsRoute = require('./routes/appMetrics');
+const rentalmetricsRoute = require('./routes/rentalMetrics');
 
 app.use('/loginInfo', loginInfoRoute);
 app.use('/customers', customersRoute);
@@ -103,6 +105,8 @@ app.use('/reservations', reservationsRoute);
 app.use('/stations', stationsRoute);
 app.use('/cars', carsRoute);
 app.use('/admindashtotals', adminDashTotalsRoute);
+app.use('/appmetrics', appmetricsRoute);
+app.use('/rentalmetrics', rentalmetricsRoute);
 
 // Root endpoint to quickly check if the API is running
 app.get("/", (request, response) => {
