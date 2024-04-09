@@ -19,12 +19,12 @@ function getCustomer(req, res) {
     if (req.role === 0) {
         // requestor is a customer
         if (req.userID != req.customerID) { // allow the user to access their own information
-            return res.status(400).send("This user is not authorized to access this data");
+            return res.status(401).send("This user is not authorized to access this data");
         }
     }
 
     if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
-        return res.status(400).send("This user is not authorized to access this data");
+        return res.status(401).send("This user is not authorized to access this data");
     }
 
     db.select(customerObjectFields).from('Customer')
@@ -57,7 +57,7 @@ function getCustomer(req, res) {
 function getCustomers(req, res) {
     // security filtering
     if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
-        return res.status(400).send("This user is not authorized to access this data");
+        return res.status(401).send("This user is not authorized to access this data");
     }
 
     fields = Array.from(customerObjectFields);
@@ -87,7 +87,7 @@ function getCustomers(req, res) {
 function createCustomer(req, res) {
     // security filtering
     if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
-        return res.status(400).send("This user is not authorized to create a customer");
+        return res.status(401).send("This user is not authorized to create a customer");
     }
 
     // Check to make sure request body has minimally
@@ -162,12 +162,12 @@ async function updateCustomer(req, res) {
     if (req.role === 0) {
         // requestor is a customer
         if (req.userID != req.customerID) { // allow the user to access their own information
-            return res.status(400).send("This user is not authorized to access this data");
+            return res.status(401).send("This user is not authorized to access this data");
         }
     }
 
     if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
-        return res.status(400).send("This user is not authorized to access this data");
+        return res.status(401).send("This user is not authorized to access this data");
     }
 
     let customerID = req.params['customer_id'];
@@ -224,7 +224,7 @@ async function updateCustomer(req, res) {
 function deleteCustomer(req, res) {
     // security filtering
     if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
-        return res.status(400).send("This user is not authorized to delete a customer");
+        return res.status(401).send("This user is not authorized to delete a customer");
     }
 
     let customerID = req.params['customer_id'];
