@@ -102,9 +102,10 @@ async function loginRequest(req, res){
     }
 }
 
-const logout = async(req, res) => {
+const logout = async (req, res) => {
     res.cookie('token', '', { httpOnly: true, expires: new Date(0) });
-    res.status(200).json({ message: 'Logged out successfully' });   
+    // Server informs the client to clear storage
+    res.status(200).json({ message: 'Logged out successfully', clearToken: true });
 }
 
 module.exports = { loginRequest, logout };
