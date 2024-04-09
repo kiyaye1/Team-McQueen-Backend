@@ -39,6 +39,7 @@ async function loginRequest(req, res){
     user = await db.select('*')
         .from('Customer')
         .where('emailAddress', emailAddress)
+        .whereNot({'statusCode': 'PVN'})
         .then(function (result) {
             if (result.length == 0) {
                 return null;
