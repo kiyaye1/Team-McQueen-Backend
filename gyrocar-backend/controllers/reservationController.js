@@ -124,11 +124,23 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
     return [valid, errorMessage];
 }
 
-function transformReservation(result) {
+function calculateReservationCost(startDatetime, endDatetime, hourlyRate) {
+    let durationHours = dayjs(endDatetime).diff(dayjs(startDatetime), 'hours');
+
+    // TODO: Finish this logic
+    return 100;
+}
+
+function transformReservation(result, hourlyRate) {
+    // calculate the cost of the reservation
+    let cost = calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate);
+
     return {
         reservationID: result["reservationID"],
         scheduledStartDatetime: result["scheduledStartDatetime"],
         scheduledEndDatetime: result["scheduledEndDatetime"],
+        // duration: duration,
+        cost: cost,
         actualStartDatetime: result["actualStartDatetime"],
         actualEndDatetime: result["actualEndDatetime"],
         isComplete: result["isComplete"],
@@ -228,7 +240,10 @@ async function getReservation(req, res) {
         // different function
         let result = await baseFullQuery.where('reservationID', reservation_id);
         result = result[0];
-        res.json(transformReservation(result));
+
+        let latestHourlyRate = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
+
+        res.json(transformReservation(result, latestHourlyRate));
     }
     catch (exception) {
         res.status(500).send("Unexpected server side error");
@@ -800,7 +815,7 @@ async function getAvailableReservations(req, res) {
     }
 
     station[0]["carsAvailable"] = cars;
-    station[0]["costPerHour"] = 25;
+    station[0]["costPerHour"] = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
     
     res.send(station);
 }
