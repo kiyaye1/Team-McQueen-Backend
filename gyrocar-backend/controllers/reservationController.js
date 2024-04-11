@@ -432,7 +432,7 @@ async function updateReservation(req, res) {
     // security filtering
     if (req.userID != req.body.customerID) {
         if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
-            return res.status(401).send("This user is not authorized to create a reservation for a customer other than themself");
+            return res.status(401).send("This user is not authorized to update this reservation");
         }
     }
 
