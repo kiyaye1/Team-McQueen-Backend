@@ -449,7 +449,7 @@ async function createReservation(req, res) {
         const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
 
         const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
-        const totalCost = latestHourlyRate * reservationDuration;
+        const totalCost = calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate);
 
         const paymentIntent = await stripe.paymentIntents.create({
             amount: totalCost * 100, // value in cents
