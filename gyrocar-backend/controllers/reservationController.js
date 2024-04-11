@@ -125,10 +125,42 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
 }
 
 function calculateReservationCost(startDatetime, endDatetime, hourlyRate) {
-    let durationHours = dayjs(endDatetime).diff(dayjs(startDatetime), 'hours');
+    const DAILY_MAXIMUM = 120;
 
-    // TODO: Finish this logic
-    return 100;
+    let totalCost = 0;
+    let currentDate = dayjs.utc(startDatetime);
+
+    // iterate through each day 
+    // and determine if it exceeds the daily maximum
+    while (currentDate.isBefore(dayjs.utc(endDatetime))) {
+        let nextDate = dayjs.utc(currentDate).add(1, 'day').startOf('day'); // get the next day at midnight
+        
+        // if the next day exceeds the endDatetime
+        // just use the endDatetime
+        if (nextDate.isAfter(endDatetime)) {
+            nextDate = dayjs.utc(endDatetime);
+        }
+
+        // calculate the amount of hours from the 
+        // current day iteration and the next day
+        let hoursInDay = nextDate.diff(currentDate, 'hours', true);
+        let costForDay = hoursInDay * hourlyRate;
+
+        // if the cost for that day would exceed
+        // the daily maximum then add the daily maximum to the total
+        if (costForDay > DAILY_MAXIMUM) {
+            totalCost += DAILY_MAXIMUM
+        }
+        else {
+            totalCost += costForDay;
+        }
+
+        // move to the next date
+        currentDate = nextDate;
+    }
+
+    // return the total cost rounded to 2 decimal places
+    return Math.round(totalCost * 100) / 100;
 }
 
 function transformReservation(result, hourlyRate) {
@@ -139,7 +171,6 @@ function transformReservation(result, hourlyRate) {
         reservationID: result["reservationID"],
         scheduledStartDatetime: result["scheduledStartDatetime"],
         scheduledEndDatetime: result["scheduledEndDatetime"],
-        // duration: duration,
         cost: cost,
         actualStartDatetime: result["actualStartDatetime"],
         actualEndDatetime: result["actualEndDatetime"],
