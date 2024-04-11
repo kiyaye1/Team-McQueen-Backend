@@ -284,8 +284,9 @@ async function getReservation(req, res) {
 async function getReservations(req, res) {
     try {
         let result = await baseFullQuery.clear("where"); // clear where clause if exists
+        const latestHourlyRate = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
 
-        transformed = result.map(transformReservation);
+        transformed = result.map((result) => transformReservation(result, latestHourlyRate));
         res.json(transformed);
     }
     catch {
