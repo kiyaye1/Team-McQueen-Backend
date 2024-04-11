@@ -291,6 +291,14 @@ async function createReservation(req, res) {
     }
     let customerID = Number(req.body["customerID"]);
 
+    // security filtering
+    if (req.userID != customerID) {
+        if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+            return res.status(401).send("This user is not authorized to create a reservation for a customer other than themself");
+        }
+    }
+
+
     if (typeof req.body["startStationID"] == "string" && !validator.isNumeric(req.body["startStationID"])) {
         return res.status(400).send("Bad Request: startStationID is invalid, it must be an int");
     }
@@ -423,6 +431,14 @@ async function createReservation(req, res) {
         });
 }
 async function updateReservation(req, res) {
+    // security filtering
+    if (req.userID != req.body.customerID) {
+        if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+            return res.status(401).send("This user is not authorized to update this reservation");
+        }
+    }
+
+
     // check to make sure all elements in
     // the request body are understood
     invalidFields = []
@@ -635,6 +651,13 @@ async function updateReservation(req, res) {
 
 }
 async function deleteReservation(req, res) {
+    // security filtering
+    if (req.userID != req.body.customerID) {
+        if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+            return res.status(401).send("This user is not authorized to create a reservation for a customer other than themself");
+        }
+    }
+
     // In order for deleting a reservation
     // it needs to not invalidate the contiguity
     // of the future reservations
