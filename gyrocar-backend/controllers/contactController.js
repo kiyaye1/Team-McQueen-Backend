@@ -26,7 +26,7 @@ const createContacts = async (req, res) => {
         
 
         let requestID = await db('Request').insert({ description: message, requestTypeID: requestType, createdDatetime: dayjs().utc().format('YYYY-MM-DD HH:mm:ss'), statusID: 1})
-        .then(function (id){
+        .then(async function (id){
             let insertObject = null;
             //insert based on what is provided
             if(customerID && carID && requestType == 2){
@@ -46,7 +46,7 @@ const createContacts = async (req, res) => {
 
             console.log(insertObject);
 
-            db('CustomerServiceRequest')
+            await db('CustomerServiceRequest')
             .insert(insertObject);
         });
 
@@ -76,11 +76,33 @@ const createContacts = async (req, res) => {
     }
 }
 
-const getContacts = async (req, res) => {
+const getCustomerContacts = async (req, res) => {
+    //get Customer Service Requests
     try {
-        let request = await db.select("requestID", "description", "createdDatetime", "statusID")
+        let request = await db.select("Request.requestID", "Request.description", "Request.createdDatetime", "Request.statusID",
+        "CustomerServiceRequest.customerName", "CustomerServiceRequest.customerEmail", "CustomerServiceRequest.type", "CustomerServiceRequest.customerID", "CustomerServiceRequest.carID")
         .from("Request")
-        .whereNot("requestTypeID", 3);
+        .innerJoin('CustomerServiceRequest', function(){
+            this.on('Request.requestID', '=', 'CustomerServiceRequest.requestID');
+        })
+        .whereNot("CustomerServiceRequest.type", "Vehicle Inquiries");
+        res.json(request);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('There was an error processing your request.');
+    }
+}
+
+const getMechanicContacts = async (req, res) => {
+    //get Customer Service Requests
+    try {
+        let request = await db.select("Request.requestID", "Request.description", "Request.createdDatetime", "Request.statusID",
+        "CustomerServiceRequest.customerName", "CustomerServiceRequest.customerEmail", "CustomerServiceRequest.type", "CustomerServiceRequest.customerID", "CustomerServiceRequest.carID")
+        .from("Request")
+        .innerJoin('CustomerServiceRequest', function(){
+            this.on('Request.requestID', '=', 'CustomerServiceRequest.requestID');
+        })
+        .where("CustomerServiceRequest.type", "Vehicle Inquiries");
         res.json(request);
     } catch (error) {
         console.error(error);
@@ -142,4 +164,4 @@ const updateTicketStatus = async (req, res) => {
 }
 
 
-module.exports = {createContacts, getContacts, updateTicketStatus}
+module.exports = {createContacts, getCustomerContacts, getMechanicContacts, updateTicketStatus}
