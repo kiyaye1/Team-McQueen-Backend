@@ -41,6 +41,9 @@ app.use('/signup', signUpRoute);
 const { verifyEmail } = require('./controllers/signupController');
 app.get('/verify-email', verifyEmail);
 
+const approvalsRoute = require('./routes/approvals');
+app.use('/approvals', approvalsRoute);
+
 // Login route
 const loginRoute = require('./routes/login');
 app.use('/login', loginRoute);
