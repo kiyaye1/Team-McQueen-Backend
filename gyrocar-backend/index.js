@@ -1,6 +1,5 @@
 // Importing necessary modules
 const express = require('express');
-//const database = require('./database');
 const cookieParser = require('cookie-parser'); 
 const cors = require('cors');
 const jwt = require('jsonwebtoken'); 
@@ -9,7 +8,7 @@ const path = require('path');
 const app = express(); 
 
 // Configuring CORS to allow requests from specified origins for increased security
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:8080', 'https://api.mcqueen-gyrocar.com', "https://www.mcqueen-gyrocar.com", "https://mcqueen-gyrocar.com"];
+const allowedOrigins = ['http://localhost:3000', 'http://localhost:8080', 'https://api.mcqueen-gyrocar.com'];
 app.use(cors({ 
     credentials: true, // Allows servers to specify whether or not to use credentials
     origin: (origin, callback) => {
@@ -24,7 +23,7 @@ app.use(cors({
 
 // Middlewares for parsing request bodies and cookies
 app.use(express.json()); 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser()); 
 
 // Environment variables for JWT secret and server port
@@ -38,6 +37,9 @@ app.use('/contacts', contactsRoute);
 // Signup route, important to keep here before login middleware to allow access
 const signUpRoute = require('./routes/signUp');
 app.use('/signup', signUpRoute);
+
+const { verifyEmail } = require('./controllers/signupController');
+app.get('/verify-email', verifyEmail);
 
 // Login route
 const loginRoute = require('./routes/login');
