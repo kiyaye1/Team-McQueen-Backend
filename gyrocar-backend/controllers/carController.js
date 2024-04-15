@@ -43,7 +43,7 @@ const postCar = async(req, res) => {
     })
     .then((result) => {
         console.log('Data created successfully');
-	return res.status(201).send("Car created successfully");
+	return res.status(201).json({ carID: result[0] });
     })
     .catch((error) => {
         console.error('Error inserting data:', error);
