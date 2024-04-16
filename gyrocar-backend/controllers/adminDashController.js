@@ -53,5 +53,29 @@ const getTotalNumOfStations = async(req, res) => {
 }
 //******************************************************************************************************** */
 
-module.exports = {getTotalNumOfEmployees, getTotalNumOfCustomers, getTotalNumOfCars, getTotalNumOfStations}
+//******************************************************************************************************** */
+const getNumOfNewCustomers = async (req, res) => {
+    db('Customer').where('statusCode', 'PVN').count('* as total')
+    .then(result => {
+        res.json(JSON.stringify(result[0].total));
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    })
+}
+//******************************************************************************************************** */
+
+//******************************************************************************************************** */
+const getNumOfRDYCustomers = async (req, res) => {
+    db('Customer').where('statusCode', 'RDY').count('* as total')
+    .then(result => {
+        res.json(JSON.stringify(result[0].total));
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    })
+}
+//******************************************************************************************************** */
+
+module.exports = {getTotalNumOfEmployees, getTotalNumOfCustomers, getTotalNumOfCars, getTotalNumOfStations, getNumOfNewCustomers, getNumOfRDYCustomers}
 
