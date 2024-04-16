@@ -4,7 +4,9 @@ const router = express.Router();
 
 router.post('/createContacts', contactController.createContacts);
 router.get('/getCustomerContacts', contactController.getCustomerContacts);
-router.get('/getMechanicContacts', contactController.getMechanicContacts);
 router.post('/updateTicketStatus', contactController.updateTicketStatus);
+router.get('/getMechanicRequests', contactController.getMechanicRequests);
+router.post('/createMechanicRequests', contactController.createMechanicRequests);
+router.post('/updateMechanicRequests', contactController.updateMechanicRequests);
 
 module.exports = router;

@@ -21,9 +21,6 @@ const createContacts = async (req, res) => {
         } else{
             requestType = 2;
         }
-        
-
-        
 
         let requestID = await db('Request').insert({ description: message, requestTypeID: requestType, createdDatetime: dayjs().utc().format('YYYY-MM-DD HH:mm:ss'), statusID: 1})
         .then(async function (id){
@@ -85,24 +82,8 @@ const getCustomerContacts = async (req, res) => {
         .innerJoin('CustomerServiceRequest', function(){
             this.on('Request.requestID', '=', 'CustomerServiceRequest.requestID');
         })
-        .whereNot("CustomerServiceRequest.type", "Vehicle Inquiries");
-        res.json(request);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('There was an error processing your request.');
-    }
-}
-
-const getMechanicContacts = async (req, res) => {
-    //get Customer Service Requests
-    try {
-        let request = await db.select("Request.requestID", "Request.description", "Request.createdDatetime", "Request.statusID",
-        "CustomerServiceRequest.customerName", "CustomerServiceRequest.customerEmail", "CustomerServiceRequest.type", "CustomerServiceRequest.customerID", "CustomerServiceRequest.carID")
-        .from("Request")
-        .innerJoin('CustomerServiceRequest', function(){
-            this.on('Request.requestID', '=', 'CustomerServiceRequest.requestID');
-        })
-        .where("CustomerServiceRequest.type", "Vehicle Inquiries");
+        .whereIn('Request.requestTypeID', [2,3]);
+        //.whereNot("CustomerServiceRequest.type", "Vehicle Inquiries");
         res.json(request);
     } catch (error) {
         console.error(error);
@@ -112,8 +93,6 @@ const getMechanicContacts = async (req, res) => {
 
 const updateTicketStatus = async (req, res) => {
     const { requestID, newStatus } = req.body;
-    //What is being sent, the status int or string?
-    //asuming status int
 
     try {
         await db('Request').where({requestID: requestID}).update({statusID: newStatus});
@@ -163,5 +142,59 @@ const updateTicketStatus = async (req, res) => {
     }
 }
 
+const getMechanicRequests = async (req, res) => {
+    //get Customer Service Requests
+    try {
+        let request = await db.select("CarInspection.carID", "CarInspection.employeeID", "CarInspection.disposition", "CarInspection.carPostStatus", "CarInspection.disposition", "CarInspection.carPrevStatus", "CarInspection.carPostStatus", "CarInspection.inspectionDatetime",
+        "ServiceRequest.requestID")
+        .from("CarInspection")
+        .innerJoin('ServiceRequest', function(){
+            this.on('ServiceRequest.requestID', '=', 'CarInspection.inspectionID');
+        });
+        res.json(request);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('There was an error processing your request.');
+    }
+}
 
-module.exports = {createContacts, getCustomerContacts, getMechanicContacts, updateTicketStatus}
+const createMechanicRequests = async (req, res) => {
+    const { requestID, carID, disposition, status} = req.body;
+    
+    //CS Reps need to be shown request ID or it needs to be passed into this automatically when a request is made
+    //tried to think of a workaround but many to many relationships stop me from doing a select based on customerID, carID or both
+
+    //I think it could be useful to show request IDs to CS reps otherwise they have no way of matching a service request with their requesite ticket
+
+    try {
+         await db('CarInspection').insert({carID: carID, disposition: disposition, carPrevStatus: status })
+        .then(async function (id){
+            let insertObject = null;
+                insertObject = {inspectionID: id[0], carID: carID, requestID:requestID};
+            console.log(insertObject);
+            await db('ServiceRequest')
+            .insert(insertObject);
+        });
+        res.send('Inquiry submitted successfully.');
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('There was an error processing your request.');
+    }
+}
+
+const updateMechanicRequests = async (req, res) => {
+    
+    const {employeeID, inspectionID, disposition, newStatus} = req.body;
+
+    try {
+        await db('CarInspection').where({inspectionID: inspectionID}).update({employeeID: employeeID, disposition: disposition, carPostStatus: newStatus, inspectionDatetime: dayjs().utc().format('YYYY-MM-DD HH:mm:ss')});
+        
+        res.send('Inquiry submitted successfully.');
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('There was an error processing your request.');
+    }
+}
+
+
+module.exports = {createContacts, getCustomerContacts, updateTicketStatus, createMechanicRequests, getMechanicRequests, updateMechanicRequests}
