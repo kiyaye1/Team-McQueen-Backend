@@ -3,6 +3,14 @@ const dayjs = require('dayjs');
 const db = require('../database');
 const nodemailer = require('nodemailer');
 
+const serviceRequestFields = [ 'Request.requestID AS Request.requestID',  'Request.requestTypeID AS Request.requestTypeID', 'Request.description AS Request.description', 
+    'Request.creatorID AS Request.creatorID', 'Request.assignedToID AS Request.assignedToID', 'Request.createdDatetime AS Request.createdDatetime', 
+    'Request.completedDatetime AS Request.completedDatetime', 'Request.statusID AS Request.statusID', 'ServiceRequest.carID AS ServiceRequest.carID', 
+    'RequestType.name AS RequestType.name', 'RequestStatus.name AS RequestStatus.name', 'CarStatus.statusCode AS CarStatus.statusCode', 'RequestStatus.description AS RequestStatus.description',
+    'CarStatus.shortDescription AS CarStatus.shortDescription', 'CarStatus.longDescription AS CarStatus.longDescription', 'Car.installDatetime AS Car.installDatetime', 'ServiceRequest.fixDescription AS ServiceRequest.fixDescription'
+];
+
+
 
 //Collect user data, insert to the database and send response email to the user
 const createContacts = async (req, res) => {
@@ -146,6 +154,7 @@ function transformServiceRequest(request) {
     return {
         requestID: request['Request.requestID'],
         description: request['Request.description'],
+        fixDescription: request['ServiceRequest.fixDescription'],
         creatorID: request['Request.creatorID'],
         assignedToID: request['Request.assignedToID'],
         createdDatetime: request['Request.createdDatetime'],
@@ -170,7 +179,6 @@ function transformServiceRequest(request) {
                 statusCode: request['CarStatus.statusCode'],
                 shortDescription: request['CarStatus.shortDescription'],
                 longDescription: request['CarStatus.longDescription']
-            
             }
         }
     };
@@ -178,13 +186,6 @@ function transformServiceRequest(request) {
 
 
 const getMechanicRequests = async (req, res) => {
-    const serviceRequestFields = [ 'Request.requestID AS Request.requestID',  'Request.requestTypeID AS Request.requestTypeID', 'Request.description AS Request.description', 
-        'Request.creatorID AS Request.creatorID', 'Request.assignedToID AS Request.assignedToID', 'Request.createdDatetime AS Request.createdDatetime', 
-        'Request.completedDatetime AS Request.completedDatetime', 'Request.statusID AS Request.statusID', 'ServiceRequest.carID AS ServiceRequest.carID', 
-        'RequestType.name AS RequestType.name', 'RequestStatus.name AS RequestStatus.name', 'CarStatus.statusCode AS CarStatus.statusCode', 'RequestStatus.description AS RequestStatus.description',
-        'CarStatus.shortDescription AS CarStatus.shortDescription', 'CarStatus.longDescription AS CarStatus.longDescription', 'Car.installDatetime AS Car.installDatetime'
-    ];
-
     //get Customer Service Requests
     try {
         let request = await db.select(serviceRequestFields).from('Request')
