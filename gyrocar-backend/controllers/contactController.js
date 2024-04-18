@@ -142,16 +142,59 @@ const updateTicketStatus = async (req, res) => {
     }
 }
 
+function transformServiceRequest(request) {
+    return {
+        requestID: request['Request.requestID'],
+        description: request['Request.description'],
+        creatorID: request['Request.creatorID'],
+        assignedToID: request['Request.assignedToID'],
+        createdDatetime: request['Request.createdDatetime'],
+        completedDatetime: request['Request.completedDatetime'],
+
+        requestType: {
+            requestTypeID: request['Request.requestTypeID'],
+            name: request['RequestType.name']
+        },
+
+        requestStatus: {
+            statusID: request['Request.statusID'],
+            name: request['RequestStatus.name'],
+            description: request['RequestStatus.description']
+        },
+
+        car: {
+            carID: request['ServiceRequest.carID'],
+            installDatetime: request['Car.installDatetime'],
+
+            status: {
+                statusCode: request['CarStatus.statusCode'],
+                shortDescription: request['CarStatus.shortDescription'],
+                longDescription: request['CarStatus.longDescription']
+            
+            }
+        }
+    };
+}
+
+
 const getMechanicRequests = async (req, res) => {
+    const serviceRequestFields = [ 'Request.requestID AS Request.requestID',  'Request.requestTypeID AS Request.requestTypeID', 'Request.description AS Request.description', 
+        'Request.creatorID AS Request.creatorID', 'Request.assignedToID AS Request.assignedToID', 'Request.createdDatetime AS Request.createdDatetime', 
+        'Request.completedDatetime AS Request.completedDatetime', 'Request.statusID AS Request.statusID', 'ServiceRequest.carID AS ServiceRequest.carID', 
+        'RequestType.name AS RequestType.name', 'RequestStatus.name AS RequestStatus.name', 'CarStatus.statusCode AS CarStatus.statusCode', 'RequestStatus.description AS RequestStatus.description',
+        'CarStatus.shortDescription AS CarStatus.shortDescription', 'CarStatus.longDescription AS CarStatus.longDescription', 'Car.installDatetime AS Car.installDatetime'
+    ];
+
     //get Customer Service Requests
     try {
-        let request = await db.select("CarInspection.carID", "CarInspection.employeeID", "CarInspection.disposition", "CarInspection.carPostStatus", "CarInspection.disposition", "CarInspection.carPrevStatus", "CarInspection.carPostStatus", "CarInspection.inspectionDatetime",
-        "ServiceRequest.requestID")
-        .from("CarInspection")
-        .innerJoin('ServiceRequest', function(){
-            this.on('ServiceRequest.requestID', '=', 'CarInspection.inspectionID');
-        });
-        res.json(request);
+        let request = await db.select(serviceRequestFields).from('Request')
+            .innerJoin('ServiceRequest', 'Request.requestID', 'ServiceRequest.requestID')
+            .innerJoin('RequestType', 'Request.requestTypeID', 'RequestType.requestTypeID')
+            .innerJoin('RequestStatus', 'Request.statusID', 'RequestStatus.requestStatusID')
+            .innerJoin('Car', 'ServiceRequest.carID', 'Car.carID')
+            .innerJoin('CarStatus', 'Car.statusCode', 'CarStatus.statusCode')
+            .where('Request.requestTypeID', 2); // only service requests
+        res.json(request.map(transformServiceRequest));
     } catch (error) {
         console.error(error);
         res.status(500).send('There was an error processing your request.');
