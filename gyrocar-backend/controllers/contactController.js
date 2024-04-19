@@ -84,15 +84,29 @@ const createContacts = async (req, res) => {
 const getCustomerContacts = async (req, res) => {
     //get Customer Service Requests
     try {
-        let request = await db.select("Request.requestID", "Request.description", "Request.createdDatetime", "Request.statusID",
-        "CustomerServiceRequest.customerName", "CustomerServiceRequest.customerEmail", "CustomerServiceRequest.type", "CustomerServiceRequest.customerID", "CustomerServiceRequest.carID")
-        .from("Request")
-        .innerJoin('CustomerServiceRequest', function(){
-            this.on('Request.requestID', '=', 'CustomerServiceRequest.requestID');
-        })
-        .whereIn('Request.requestTypeID', [2,3]);
+        let requests = await db.select("Request.requestID", "Request.description", "Request.createdDatetime", "Request.statusID AS Request.statusID", 'RequestStatus.name AS RequestStatus.name', 'RequestStatus.description AS RequestStatus.description', 
+                "CustomerServiceRequest.customerName", "CustomerServiceRequest.customerEmail", "CustomerServiceRequest.type", "CustomerServiceRequest.customerID", "CustomerServiceRequest.carID")
+            .from("Request")
+            .innerJoin('CustomerServiceRequest', function(){
+                this.on('Request.requestID', '=', 'CustomerServiceRequest.requestID');
+            })
+            .innerJoin('RequestStatus', 'Request.statusID', 'RequestStatus.requestStatusID')
+            .whereIn('Request.requestTypeID', [2,3]);
         //.whereNot("CustomerServiceRequest.type", "Vehicle Inquiries");
-        res.json(request);
+
+        requests.map(request => {
+            request.requestStatus = {
+                statusID: request['Request.statusID'],
+                name: request['RequestStatus.name'],
+                description: request['RequestStatus.description']
+            }
+
+            delete request['Request.statusID'];
+            delete request['RequestStatus.name'];
+            delete request['RequestStatus.description'];
+        });
+    
+        res.json(requests);
     } catch (error) {
         console.error(error);
         res.status(500).send('There was an error processing your request.');
