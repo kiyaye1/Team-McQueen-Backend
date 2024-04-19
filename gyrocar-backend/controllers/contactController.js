@@ -232,12 +232,29 @@ const createMechanicRequests = async (req, res) => {
 
 const updateMechanicRequests = async (req, res) => {
     
-    const {employeeID, inspectionID, disposition, newStatus} = req.body;
+    const {requestID, description, fixDescription, assignedToID, completedDatetime, requestStatusID, carID} = req.body;
 
+    if (!requestID) {
+        return res.status(400).send('Request ID is required');
+    }
+
+    let request = await db.select('requestID').from('ServiceRequest').where({requestID: requestID});
+    if (request.length == 0) {
+        return res.status(404).send('Request not found');
+    }
+    
     try {
-        await db('CarInspection').where({inspectionID: inspectionID}).update({employeeID: employeeID, disposition: disposition, carPostStatus: newStatus, inspectionDatetime: dayjs().utc().format('YYYY-MM-DD HH:mm:ss')});
-        
-        res.send('Inquiry submitted successfully.');
+        await db.transaction(async trx => {
+            await trx('Request').where({requestID: requestID}).update({description: description, assignedToID: assignedToID, completedDatetime: completedDatetime, statusID: requestStatusID})
+                .then(async () => {
+                    await trx('ServiceRequest').where({requestID: requestID}).update({fixDescription: fixDescription, carID: carID});
+                })
+                .catch(error => {
+                    throw error;
+                });
+        });
+
+        res.send('Request updated successfully');
     } catch (error) {
         console.error(error);
         res.status(500).send('There was an error processing your request.');
