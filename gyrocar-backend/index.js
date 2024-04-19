@@ -1,9 +1,9 @@
 // Importing necessary modules
+require('dotenv').config();
 const express = require('express');
 const cookieParser = require('cookie-parser'); 
 const cors = require('cors');
 const jwt = require('jsonwebtoken'); 
-require('dotenv').config();
 const path = require('path');
 const app = express(); 
 
@@ -29,6 +29,9 @@ app.use(cookieParser());
 // Environment variables for JWT secret and server port
 const secret = process.env.JWT_SECRET;
 const port = process.env.PORT;
+
+const { checkEmail } = require('./controllers/signupController');
+app.post('/check-email', checkEmail);
 
 // Route handlers for contact us path
 const contactsRoute = require('./routes/contacts');
