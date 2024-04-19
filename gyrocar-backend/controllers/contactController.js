@@ -203,23 +203,27 @@ const getMechanicRequests = async (req, res) => {
 }
 
 const createMechanicRequests = async (req, res) => {
-    const { requestID, carID, disposition, status} = req.body;
-    
-    //CS Reps need to be shown request ID or it needs to be passed into this automatically when a request is made
-    //tried to think of a workaround but many to many relationships stop me from doing a select based on customerID, carID or both
-
-    //I think it could be useful to show request IDs to CS reps otherwise they have no way of matching a service request with their requesite ticket
+    const { description, assignedToID, carID, creatorID  } = req.body;
 
     try {
-         await db('CarInspection').insert({carID: carID, disposition: disposition, carPrevStatus: status })
-        .then(async function (id){
-            let insertObject = null;
-                insertObject = {inspectionID: id[0], carID: carID, requestID:requestID};
-            console.log(insertObject);
-            await db('ServiceRequest')
-            .insert(insertObject);
+        let requestID = await db.transaction(async trx => {
+            return trx.insert({description: description, creatorID: creatorID, assignedToID: assignedToID, createdDatetime: dayjs().utc().format('YYYY-MM-DD HH:mm:ss'), statusID: 1, requestTypeID: 2})
+                .into('Request')
+                .then(async ([requestID]) => {
+                    await trx.insert({requestID: requestID, carID: carID}).into('ServiceRequest');
+                    return requestID;
+                })
+                .catch(error => {
+                    throw error;
+                });
         });
-        res.send('Inquiry submitted successfully.');
+
+        if (!requestID) {
+            return res.status(500).send('There was an error in creating the request');
+        }
+
+        return res.json({requestID: requestID});
+
     } catch (error) {
         console.error(error);
         res.status(500).send('There was an error processing your request.');
