@@ -14,6 +14,18 @@ const customerObjectFields = [
 
 function getCustomer(req, res) {
     customerID = req.params['customer_id'];
+    
+    // security filtering
+    if (req.role === 0) {
+        // requestor is a customer
+        if (req.userID != req.customerID) { // allow the user to access their own information
+            return res.status(401).send("This user is not authorized to access this data");
+        }
+    }
+
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to access this data");
+    }
 
     db.select(customerObjectFields).from('Customer')
         .where('customerID', customerID)
@@ -43,6 +55,11 @@ function getCustomer(req, res) {
 }
 
 function getCustomers(req, res) {
+    // security filtering
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to access this data");
+    }
+
     fields = Array.from(customerObjectFields);
     fields[fields.indexOf('statusCode')] = 'CustomerStatus.statusCode';
     fields = fields.concat(['CustomerStatus.statusCode', 'shortDescription', 'longDescription']);
@@ -68,6 +85,11 @@ function getCustomers(req, res) {
 }
 
 function createCustomer(req, res) {
+    // security filtering
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to create a customer");
+    }
+
     // Check to make sure request body has minimally
     // required fields in order to create a customer
     requiredFields = ["firstName", "lastName", "emailAddress", "driversLicenseNum", "driversLicenseState"]
@@ -136,6 +158,18 @@ function createCustomer(req, res) {
 }
 
 async function updateCustomer(req, res) {
+    // security filtering
+    if (req.role === 0) {
+        // requestor is a customer
+        if (req.userID != req.customerID) { // allow the user to access their own information
+            return res.status(401).send("This user is not authorized to access this data");
+        }
+    }
+
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to access this data");
+    }
+
     let customerID = req.params['customer_id'];
 
     // check to make sure all elements in
@@ -153,8 +187,6 @@ async function updateCustomer(req, res) {
     }
 
     if (req.body['customerID']) delete req.body['customerID'] // don't allow editing the customerID
-    if (req.body['phoneVerified']) delete req.body['phoneVerified'] // don't allow editing the phoneVerified field
-    if (req.body['emailVerified']) delete req.body['emailVerified'] // don't allow editing the emailVerified field
 
 
     // if they are trying to edit the email address
@@ -190,6 +222,11 @@ async function updateCustomer(req, res) {
 
 
 function deleteCustomer(req, res) {
+    // security filtering
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to delete a customer");
+    }
+
     let customerID = req.params['customer_id'];
     if (customerID.length == 0) {
         res.sendStatus(400);

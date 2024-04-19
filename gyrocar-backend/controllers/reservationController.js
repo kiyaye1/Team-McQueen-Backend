@@ -31,9 +31,9 @@ const createReservationFields = ["startStationID", "endStationID", "carID", "sch
 const joinedReservationFields = [
     "reservationID", "scheduledStartDatetime", "scheduledEndDatetime", "actualStartDatetime", "actualEndDatetime", "isComplete", "StartStation.stationID AS StartStation.stationID",
     "StartStation.country AS StartStation.country", "StartStation.state AS StartStation.state", "StartStation.county AS StartStation.county", "StartStation.city AS StartStation.city", 
-    "StartStation.zip AS StartStation.zip", "StartStation.coordinates AS StartStation.coordinates", "StartStation.streetAddress AS StartStation.streetAddress",
+    "StartStation.zip AS StartStation.zip", "StartStation.coordinates AS StartStation.coordinates", "StartStation.streetAddress AS StartStation.streetAddress", "StartStation.name AS StartStation.name",
     "EndStation.stationID AS EndStation.stationID", "EndStation.country AS EndStation.country", "EndStation.state AS EndStation.state", "EndStation.county AS EndStation.county",
-    "EndStation.city AS EndStation.city", "EndStation.zip AS EndStation.zip", "EndStation.coordinates AS EndStation.coordinates", "EndStation.streetAddress AS EndStation.streetAddress",
+    "EndStation.city AS EndStation.city", "EndStation.zip AS EndStation.zip", "EndStation.coordinates AS EndStation.coordinates", "EndStation.streetAddress AS EndStation.streetAddress", "EndStation.name AS EndStation.name",
     "Customer.customerID AS Customer.customerID", "Customer.firstName AS Customer.firstName", "Customer.lastName AS Customer.lastName", "Customer.middleInitial AS Customer.middleInitial",
     "Customer.suffix AS Customer.suffix", "Customer.createdDatetime AS Customer.createdDatetime", "Customer.phoneNumber AS Customer.phoneNumber",
     "Customer.emailAddress AS Customer.emailAddress", "Customer.phoneVerified AS Customer.phoneVerified", "Customer.emailVerified AS Customer.emailVerified", "Car.CarID AS Car.CarID",
@@ -139,6 +139,7 @@ function transformReservation(result) {
             county: result["StartStation.county"],
             city: result["StartStation.city"],
             zip: result["StartStation.zip"],
+            name: result["StartStation.name"],
             coordinates: renameCoordinates(result["StartStation.coordinates"])
         },
         endStation: {
@@ -148,6 +149,7 @@ function transformReservation(result) {
             county: result["EndStation.county"],
             city: result["EndStation.city"],
             zip: result["EndStation.zip"],
+            name: result["EndStation.name"],
             coordinates: renameCoordinates(result["EndStation.coordinates"])
         },
         customer: {
@@ -289,6 +291,14 @@ async function createReservation(req, res) {
     }
     let customerID = Number(req.body["customerID"]);
 
+    // security filtering
+    if (req.userID != customerID) {
+        if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+            return res.status(401).send("This user is not authorized to create a reservation for a customer other than themself");
+        }
+    }
+
+
     if (typeof req.body["startStationID"] == "string" && !validator.isNumeric(req.body["startStationID"])) {
         return res.status(400).send("Bad Request: startStationID is invalid, it must be an int");
     }
@@ -421,6 +431,14 @@ async function createReservation(req, res) {
         });
 }
 async function updateReservation(req, res) {
+    // security filtering
+    if (req.userID != req.body.customerID) {
+        if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+            return res.status(401).send("This user is not authorized to update this reservation");
+        }
+    }
+
+
     // check to make sure all elements in
     // the request body are understood
     invalidFields = []
@@ -633,6 +651,13 @@ async function updateReservation(req, res) {
 
 }
 async function deleteReservation(req, res) {
+    // security filtering
+    if (req.userID != req.body.customerID) {
+        if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+            return res.status(401).send("This user is not authorized to create a reservation for a customer other than themself");
+        }
+    }
+
     // In order for deleting a reservation
     // it needs to not invalidate the contiguity
     // of the future reservations

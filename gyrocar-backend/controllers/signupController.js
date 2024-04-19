@@ -1,11 +1,10 @@
 const express = require('express');
 const db = require('../raw_mysql');
-
 const bcrypt = require("bcrypt");
 const validator = require("validator");
 const { isValid } = require('usdl-regex');
 const valid = require("card-validator");
-
+const nodemailer = require('nodemailer');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const dayjs = require('dayjs');
@@ -17,13 +16,28 @@ dayjs.extend(timezone);
 //Dictates how many times the hashing process is performed (More rounds mean more security)
 const saltRounds = 10;
 
-//RegExp pattern for mobile phone numbers
-const phoneNumPattern = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
+//Endpoint for checking email uniqueness
+const checkEmail = async (req, res) => {
+    console.log("Request body:", req.body);
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: "Email parameter is required." });
+    }
+    const sql = 'SELECT COUNT(*) AS count FROM Customer WHERE emailAddress = ?';
+    db.query(sql, [email], (err, results) => {
+        if (err) {
+            console.error('Database error:', err.message);
+            return res.status(500).json({ message: "Internal server error. Please try again later." });
+        }
 
-//RegExp pattern for names
-const namePattern = /^[a-z ,.'-]+$/i;
-
-
+        if (results[0].count > 0) {
+            res.status(400).json({ message: "Email is not unique. Please use a different email." });
+        } else {
+            res.json({ message: "Email is unique." });
+        }
+    });
+};
+//******************************************************************************************************** */
 
 //******************************************************************************************************** */
 //The main logic to collect customer data, do data validation, and finally add it into the database
@@ -50,61 +64,7 @@ const signUp = async(req, res) => {
     const phoneVerified = 0;
     //Initial email verification status (0 - not verified)
     const emailVerified = 0;
-    
-    //Validate first name using the regex pattern 
-    if((namePattern.test(validator.trim(firstName))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
 
-    //Validate last name using the regex pattern
-    if((namePattern.test(validator.trim(lastName))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate for a 10 digit phone number using the regex pattern - phoneNumberPattern
-    if((phoneNumPattern.test(validator.trim(phoneNumber))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate whether the given string literal is an email or not
-    if((validator.isEmail(validator.trim(emailAddress))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate email uniqueness
-    const sqlEmail = 'SELECT COUNT(*) AS count FROM Customer WHERE emailAddress = ?';
-    let result = await new Promise((resolve, reject) => {
-        db.query(sqlEmail, [emailAddress], (err, result) => {
-            resolve(result);
-        });
-    });
-    if (result[0].count >= 1) {
-        return res.status(400).send("Email is not unique");
-    }
-
-    //Validate whether mailing address is provided or not
-    if ((validator.isEmpty(validator.trim(mailingAddress))) === true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Check if the password can be considered a strong password or not 
-    //[minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1]
-    if((validator.isStrongPassword(hashedPassword)) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Check whether the retyped password matches the password given or not
-    if((validator.equals(hashedPassword, retypedPassword)) != true) {
-        res.status(400).send("Password doesn't match");
-        return;
-    }
-    console.log(hashedPassword)
     //Hash the password 
     bcrypt.hash(hashedPassword, saltRounds, (err, hash) => {
         console.log(hash)
@@ -120,6 +80,7 @@ const signUp = async(req, res) => {
         });
     });                          
 };
+//******************************************************************************************************** */
 
 //******************************************************************************************************** */
 //The main logic to collect drivers license data, do data validation, and finally add it into the database
@@ -160,18 +121,20 @@ const updateWdl = async(req, res) => {
         return res.send("Driver's license information updated successfully");       
     });  
 };
+//******************************************************************************************************** */
 
 //******************************************************************************************************** */
 //The main logic to collect credit card information, do data validation, and finally add it into the database
 const postCCI = async(req, res) => {
-
     const customerID = req.params['customer_id'];
-    // check to make sure customerID exists
+
+    // Check customerID existence
     let customer = await new Promise((resolve, reject) => {
         db.query('SELECT customerID, firstName, lastName, emailAddress, phoneNumber FROM Customer WHERE customerID = ?', [customerID], (err, result) => {
             resolve(result);
         })
     });
+
     if (customer.length != 1) {
         return res.status(400).send("customerID does not exist");
     }
@@ -181,46 +144,83 @@ const postCCI = async(req, res) => {
         return res.status(400).send('cardToken is required');
     }
     const cardToken = validator.trim(req.body.cardToken);
-    
+
     try {
+        // Creating Stripe customer and attaching card
         const stripeCustomer = await stripe.customers.create({
             email: customer.emailAddress,
             name: `${customer.firstName} ${customer.lastName}`,
             phone: customer.phoneNumber
         });
 
-        // save stripe customer id to database
-        const sql = 'UPDATE Customer SET stripeCustomerID = ? WHERE customerID = ?';
-        let storeIDResult = db.query(sql, [stripeCustomer.id, customerID], (err, result) => {
-            if (err) {
-                return false;
-            }
-            return true;
-        });
-
-        // attach card token to customer
         const paymentMethod = await stripe.paymentMethods.create({
             type: 'card',
-            card: {
-              token: cardToken,
-            },
+            card: { token: cardToken },
         });
-      
-        // Attach the payment method to the customer
+
         await stripe.paymentMethods.attach(paymentMethod.id, {
             customer: stripeCustomer.id,
         });
-        
-        // ensure db update was successful
-        if (!await Promise.resolve(storeIDResult)) {
-            return res.status(500).send('Error creating customer');
-        }
 
-        return res.send('Customer payment information updated successfully');
+        // Generate verification token
+        const verificationToken = require('crypto').randomBytes(32).toString('hex');
+        const tokenExpiry = dayjs().add(1, 'hour').utc().format(); // 1 hour from now
+
+        // Update customer to store Stripe ID and verification token
+        const sql = 'UPDATE Customer SET stripeCustomerID = ?, verificationToken = ?, tokenExpiry = ? WHERE customerID = ?';
+        await db.query(sql, [stripeCustomer.id, verificationToken, tokenExpiry, customerID]);
+
+        // Send acknowledgment email to the user
+        let transporter = nodemailer.createTransport({
+            host: "smtp.gmail.com", 
+            port: 587, // or 465 for SSL
+            secure: false, // true for 465, false for other ports
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS, //gmail application password
+            },
+        });
+
+        const mailOptions = {
+            from: '"GyroGoGo" <kiyaye1@gmail.com>',
+            to: customer.emailAddress,
+            subject: 'Verify Your Email',
+            html: `<p>Thank you for registering. Please click <a href="http://localhost:3000/verify-email?token=${verificationToken}">here</a> to verify your email.</p>`
+        };
+
+        transporter.sendMail(mailOptions, function(error, info) {
+            if (error) {
+                console.error('Failed to send verification email:', error);
+                return res.status(500).send('Failed to send verification email.');
+            } else {
+                return res.status(200).send('Customer payment information and email verification link sent successfully.');
+            }
+        });
 
     } catch (error) {
-        res.status(500).send('Error creating customer');
+        console.error('Error in handling credit card info:', error);
+        res.status(500).send('Error processing credit card information');
     }
 };
+//******************************************************************************************************** */
 
-module.exports = {signUp, updateWdl, postCCI}
+//******************************************************************************************************** */
+//This function handles the verification of the email
+const verifyEmail = async (req, res) => {
+    const tokenEmail = req.query.token;
+    console.log("Token received:", req.query.token);
+    if (!tokenEmail) {
+        return res.status(400).send({error: "No token provided", errorDescription: "Token is required"});
+    }
+    const sql = "UPDATE Customer SET emailVerified = 1 WHERE verificationToken = ? AND tokenExpiry > CONVERT_TZ(NOW(), '+00:00', '-04:00')";
+    db.query(sql, [tokenEmail], (err, result) => {
+        if (err || result.affectedRows === 0) {
+            console.log(result.affectedRows === 0);
+            return res.status(400).send('Verification failed or token expired');
+        }
+        res.status(200).json({ success: true, message: "Email verified successfully" });
+    });
+};
+//******************************************************************************************************** */
+
+module.exports = {checkEmail, signUp, updateWdl, postCCI, verifyEmail}

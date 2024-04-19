@@ -1,15 +1,14 @@
 // Importing necessary modules
+require('dotenv').config();
 const express = require('express');
-//const database = require('./database');
 const cookieParser = require('cookie-parser'); 
 const cors = require('cors');
 const jwt = require('jsonwebtoken'); 
-require('dotenv').config();
 const path = require('path');
 const app = express(); 
 
 // Configuring CORS to allow requests from specified origins for increased security
-const allowedOrigins = ['http://localhost:3000', 'http://localhost:8080', 'https://api.mcqueen-gyrocar.com'];
+const allowedOrigins = ['http://localhost:3000', 'http://localhost:8080', 'https://api.mcqueen-gyrocar.com', 'https://www.mcqueen-gyrocar.com', 'https://mcqueen-gyrocar.com'];
 app.use(cors({ 
     credentials: true, // Allows servers to specify whether or not to use credentials
     origin: (origin, callback) => {
@@ -24,12 +23,15 @@ app.use(cors({
 
 // Middlewares for parsing request bodies and cookies
 app.use(express.json()); 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser()); 
 
 // Environment variables for JWT secret and server port
 const secret = process.env.JWT_SECRET;
 const port = process.env.PORT;
+
+const { checkEmail } = require('./controllers/signupController');
+app.post('/check-email', checkEmail);
 
 // Route handlers for contact us path
 const contactsRoute = require('./routes/contacts');
@@ -38,6 +40,12 @@ app.use('/contacts', contactsRoute);
 // Signup route, important to keep here before login middleware to allow access
 const signUpRoute = require('./routes/signUp');
 app.use('/signup', signUpRoute);
+
+const { verifyEmail } = require('./controllers/signupController');
+app.get('/verify-email', verifyEmail);
+
+const approvalsRoute = require('./routes/approvals');
+app.use('/approvals', approvalsRoute);
 
 // Login route
 const loginRoute = require('./routes/login');
@@ -95,14 +103,18 @@ const reservationsRoute = require('./routes/reservations');
 const stationsRoute = require('./routes/stations');
 const carsRoute = require('./routes/cars');
 const adminDashTotalsRoute = require('./routes/adminDashTotals');
+const appmetricsRoute = require('./routes/appMetrics');
+const rentalmetricsRoute = require('./routes/rentalMetrics');
 
 app.use('/loginInfo', loginInfoRoute);
 app.use('/customers', customersRoute);
 app.use('/employees', employeesRoute);
 app.use('/reservations', reservationsRoute);
 app.use('/stations', stationsRoute);
-app.use('/cars', stationsRoute);
+app.use('/cars', carsRoute);
 app.use('/admindashtotals', adminDashTotalsRoute);
+app.use('/appmetrics', appmetricsRoute);
+app.use('/rentalmetrics', rentalmetricsRoute);
 
 // Root endpoint to quickly check if the API is running
 app.get("/", (request, response) => {

@@ -10,6 +10,7 @@ const getCars = async(req, res) => {
     })
     .catch((error) => {
         console.error('Error fetching cars:', error);
+	return res.status(500).send("Server side error");
     });
 }
 //******************************************************************************************************** */
@@ -24,6 +25,7 @@ const getCar = async(req, res) => {
     })
     .catch((error) => {
         console.error('Error selecting rows by ID:', error);
+	return res.status(500).send("Server side error");
     });
 }
 //******************************************************************************************************** */
@@ -41,9 +43,11 @@ const postCar = async(req, res) => {
     })
     .then((result) => {
         console.log('Data created successfully');
+	return res.status(201).json({ carID: result[0] });
     })
     .catch((error) => {
         console.error('Error inserting data:', error);
+	return res.status(500).send("Server side error");
     })
 }
 //******************************************************************************************************** */
@@ -62,9 +66,11 @@ const updateCar = async(req, res) => {
     })
     .then((results) => {
         console.log('Data updated successfully');
+	return res.status(200).send("Car updated successfully");
     })
     .catch((error) => {
         console.error('Error updating data:', error);
+	return res.status(500).send("Server side error");
     });
 }
 //******************************************************************************************************** */
@@ -76,9 +82,11 @@ const deleteCar = async(req, res) => {
     db('Car').where({ carID: carID }).del()
     .then((results) => {
         console.log('Car deleted successfully');
+	return res.status(200).send("Car deleted sucessfully");
     })
     .catch((error) => {
         console.error('Error deleting car:', error);
+	return res.status(500).send("Server side error");
     });
 }
 //******************************************************************************************************** */

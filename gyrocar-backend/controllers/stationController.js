@@ -8,7 +8,7 @@ const db = require('../database');
 
 const METERS_IN_MILE = 1609.344;
 
-const stationFields = ['stationID', 'country', 'state', 'county', 'city', 'zip', 'coordinates', 'streetAddress'];
+const stationFields = ['stationID', 'country', 'state', 'county', 'city', 'zip', 'coordinates', 'streetAddress', 'name'];
 
 function renameCoordinates(obj) {
     // If the result has coordinate values
@@ -146,6 +146,10 @@ async function getStations(req, res) {
 }
 
 async function updateStation(req, res) {
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to update a station");
+    }
+
     let query = db('Station');
     let station_id = req.params["station_id"];
 
@@ -230,6 +234,10 @@ async function updateStation(req, res) {
 }
 
 async function deleteStation(req, res) {
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to update a station");
+    }
+
     let station_id = req.params["station_id"];
 
     // ensure station_id is present
@@ -273,6 +281,10 @@ async function deleteStation(req, res) {
 }
 
 async function createStation(req, res) {
+    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+        return res.status(401).send("This user is not authorized to update a station");
+    }
+
     let query = db.into('Station'); // set to table to insert into
 
     let coordinates = req.body['coordinates'];
