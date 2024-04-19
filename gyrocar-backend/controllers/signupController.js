@@ -16,11 +16,28 @@ dayjs.extend(timezone);
 //Dictates how many times the hashing process is performed (More rounds mean more security)
 const saltRounds = 10;
 
-//RegExp pattern for mobile phone numbers
-const phoneNumPattern = /^\(?([0-9]{3})\)?[-. ]?([0-9]{3})[-. ]?([0-9]{4})$/;
+//Endpoint for checking email uniqueness
+const checkEmail = async (req, res) => {
+    console.log("Request body:", req.body);
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: "Email parameter is required." });
+    }
+    const sql = 'SELECT COUNT(*) AS count FROM Customer WHERE emailAddress = ?';
+    db.query(sql, [email], (err, results) => {
+        if (err) {
+            console.error('Database error:', err.message);
+            return res.status(500).json({ message: "Internal server error. Please try again later." });
+        }
 
-//RegExp pattern for names
-const namePattern = /^[a-z ,.'-]+$/i;
+        if (results[0].count > 0) {
+            res.status(400).json({ message: "Email is not unique. Please use a different email." });
+        } else {
+            res.json({ message: "Email is unique." });
+        }
+    });
+};
+//******************************************************************************************************** */
 
 //******************************************************************************************************** */
 //The main logic to collect customer data, do data validation, and finally add it into the database
@@ -47,61 +64,7 @@ const signUp = async(req, res) => {
     const phoneVerified = 0;
     //Initial email verification status (0 - not verified)
     const emailVerified = 0;
-    
-    //Validate first name using the regex pattern 
-    if((namePattern.test(validator.trim(firstName))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
 
-    //Validate last name using the regex pattern
-    if((namePattern.test(validator.trim(lastName))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate for a 10 digit phone number using the regex pattern - phoneNumberPattern
-    if((phoneNumPattern.test(validator.trim(phoneNumber))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate whether the given string literal is an email or not
-    if((validator.isEmail(validator.trim(emailAddress))) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Validate email uniqueness
-    const sqlEmail = 'SELECT COUNT(*) AS count FROM Customer WHERE emailAddress = ?';
-    let result = await new Promise((resolve, reject) => {
-        db.query(sqlEmail, [emailAddress], (err, result) => {
-            resolve(result);
-        });
-    });
-    if (result[0].count >= 1) {
-        return res.status(400).send("Email is not unique");
-    }
-
-    //Validate whether mailing address is provided or not
-    if ((validator.isEmpty(validator.trim(mailingAddress))) === true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Check if the password can be considered a strong password or not 
-    //[minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1]
-    if((validator.isStrongPassword(hashedPassword)) != true) {
-        res.status(400).send("Error");
-        return;
-    }
-
-    //Check whether the retyped password matches the password given or not
-    if((validator.equals(hashedPassword, retypedPassword)) != true) {
-        res.status(400).send("Password doesn't match");
-        return;
-    }
-    console.log(hashedPassword)
     //Hash the password 
     bcrypt.hash(hashedPassword, saltRounds, (err, hash) => {
         console.log(hash)
@@ -260,4 +223,4 @@ const verifyEmail = async (req, res) => {
 };
 //******************************************************************************************************** */
 
-module.exports = {signUp, updateWdl, postCCI, verifyEmail}
+module.exports = {checkEmail, signUp, updateWdl, postCCI, verifyEmail}
