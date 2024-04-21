@@ -124,11 +124,54 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
     return [valid, errorMessage];
 }
 
-function transformReservation(result) {
+function calculateReservationCost(startDatetime, endDatetime, hourlyRate) {
+    const DAILY_MAXIMUM = 120;
+
+    let totalCost = 0;
+    let currentDate = dayjs.utc(startDatetime);
+
+    // iterate through each day 
+    // and determine if it exceeds the daily maximum
+    while (currentDate.isBefore(dayjs.utc(endDatetime))) {
+        let nextDate = dayjs.utc(currentDate).add(1, 'day').startOf('day'); // get the next day at midnight
+        
+        // if the next day exceeds the endDatetime
+        // just use the endDatetime
+        if (nextDate.isAfter(endDatetime)) {
+            nextDate = dayjs.utc(endDatetime);
+        }
+
+        // calculate the amount of hours from the 
+        // current day iteration and the next day
+        let hoursInDay = nextDate.diff(currentDate, 'hours', true);
+        let costForDay = hoursInDay * hourlyRate;
+
+        // if the cost for that day would exceed
+        // the daily maximum then add the daily maximum to the total
+        if (costForDay > DAILY_MAXIMUM) {
+            totalCost += DAILY_MAXIMUM
+        }
+        else {
+            totalCost += costForDay;
+        }
+
+        // move to the next date
+        currentDate = nextDate;
+    }
+
+    // return the total cost rounded to 2 decimal places
+    return Math.round(totalCost * 100) / 100;
+}
+
+function transformReservation(result, hourlyRate) {
+    // calculate the cost of the reservation
+    let cost = calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate);
+
     return {
         reservationID: result["reservationID"],
         scheduledStartDatetime: result["scheduledStartDatetime"],
         scheduledEndDatetime: result["scheduledEndDatetime"],
+        cost: cost,
         actualStartDatetime: result["actualStartDatetime"],
         actualEndDatetime: result["actualEndDatetime"],
         isComplete: result["isComplete"],
@@ -230,7 +273,10 @@ async function getReservation(req, res) {
         // different function
         let result = await baseFullQuery.where('reservationID', reservation_id);
         result = result[0];
-        res.json(transformReservation(result));
+
+        let latestHourlyRate = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
+
+        res.json(transformReservation(result, latestHourlyRate));
     }
     catch (exception) {
         res.status(500).send("Unexpected server side error");
@@ -240,8 +286,9 @@ async function getReservation(req, res) {
 async function getReservations(req, res) {
     try {
         let result = await baseFullQuery.clear("where"); // clear where clause if exists
+        const latestHourlyRate = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
 
-        transformed = result.map(transformReservation);
+        transformed = result.map((result) => transformReservation(result, latestHourlyRate));
         res.json(transformed);
     }
     catch {
@@ -405,12 +452,17 @@ async function createReservation(req, res) {
         isComplete: 0
     }).into('CarReservation');
 
-    query.then(async function (result) {
+    query.then(async function (reservationResult) {
         
         // create payment with stripe
-        // TODO: get the most recent hourly rate for the car
+        // get the most recent hourly rate for the car
+        const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
+
+        const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
+        const totalCost = calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate);
+
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: 25 * dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours() * 100, // value in cents
+            amount: totalCost * 100, // value in cents
             currency: 'usd',
             confirm: true,
             payment_method: req.body.paymentMethodID,
@@ -421,10 +473,26 @@ async function createReservation(req, res) {
             }
         });
 
-        // TODO: save the transaction into the database
+        // save the transaction into the database
+        let currentDatetime = dayjs.utc().format('YYYY-MM-DD hh:mm:ss');
+        let paymentInsert = await db.insert(
+                {
+                    customerID: customerID,
+                    reservationID: reservationResult[0],
+                    transactionHandler: "Stripe",
+                    paymentStatusID: 3, // completed
+                    datetimeStarted: currentDatetime,
+                    datetimeComplete:  currentDatetime,
+                    hourlyRateID: latestHourlyRate[0].hourlyRateID,
+                    hours: reservationDuration,
+                    rentalAmount: totalCost,
+                    damageAmount: 0,
+                    totalAmount: totalCost
+                }
+            ).into('PaymentTransaction');
 
 
-        res.json({ reservationID: result[0] }); // send back the auto incremented reservationID
+        res.json({ reservationID: reservationResult[0] }); // send back the auto incremented reservationID
     })
         .catch(function (err) {
             res.status(500).send("Unexpected server side error");
@@ -718,7 +786,7 @@ async function getAvailableReservations(req, res) {
     if (!dayjs(req.body["scheduledStartDatetime"]).isValid()) {
         return res.status(400).send("scheduledStartDatetime is improperly formatted");
     }
-    req.body["scheduledStartDatetime"] = dayjs(req.body["scheduledStartDatetime"]).format('YYYY-MM-DD HH:mm:ss');
+    req.body["scheduledStartDatetime"] = dayjs.utc(req.body["scheduledStartDatetime"]).format('YYYY-MM-DD HH:mm:ss');
 
     if (!req.body["scheduledEndDatetime"]) {
         return res.status(400).send("A scheduledEndDatetime must be specified in request body");
@@ -726,7 +794,7 @@ async function getAvailableReservations(req, res) {
     if (!dayjs(req.body["scheduledEndDatetime"]).isValid()) {
         return res.status(400).send("scheduledEndDatetime is improperly formatted");
     }
-    req.body["scheduledEndDatetime"] = dayjs(req.body["scheduledEndDatetime"]).format('YYYY-MM-DD HH:mm:ss');
+    req.body["scheduledEndDatetime"] = dayjs.utc(req.body["scheduledEndDatetime"]).format('YYYY-MM-DD HH:mm:ss');
 
 
     if (!req.body["startStationID"]) {
@@ -759,7 +827,7 @@ async function getAvailableReservations(req, res) {
     let carsAtStation = await db.select('carID').max('scheduledEndDatetime AS lastEnd')
         .from('CarReservation')
         .where('scheduledEndDatetime', '<', req.body["scheduledStartDatetime"])
-        .andWhere('endStationID', req.body["endStationID"])
+        .andWhere('endStationID', req.body["startStationID"])
         .groupBy('carID');
 
     let cars = [];
@@ -767,7 +835,7 @@ async function getAvailableReservations(req, res) {
     carsAtStation.forEach(car => {
         // get the next reservation for the cars
         // that will be at the station
-        promises.push(db.select('carID').min('scheduledStartDatetime AS nextStart')
+        promises.push(db.select(['carID', 'startStationID']).min('scheduledStartDatetime AS nextStart')
             .from('CarReservation')
             .where('carID', car.carID)
             .andWhere('scheduledStartDatetime', '>', dayjs(car.lastEnd).format('YYYY-MM-DD HH:mm:ss'))
@@ -775,7 +843,8 @@ async function getAvailableReservations(req, res) {
                 if (result[0].carID === null) {
                     cars.push(car.carID);
                 }
-                else if (dayjs(result[0].nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"]) ) {
+                else if (dayjs(result[0].nextStart).subtract(1, 'hour').isAfter(req.body["scheduledStartDatetime"])
+                    && result[0].startStationID == req.body["endStationID"] ) {
                     cars.push(car.carID);
                 }
             }));
@@ -803,7 +872,8 @@ async function getAvailableReservations(req, res) {
     }
 
     station[0]["carsAvailable"] = cars;
-    station[0]["costPerHour"] = 25;
+    station[0]["costPerHour"] = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
+    station[0]["cost"] = calculateReservationCost(req.body["scheduledStartDatetime"], req.body["scheduledEndDatetime"], station[0]["costPerHour"]);
     
     res.send(station);
 }
