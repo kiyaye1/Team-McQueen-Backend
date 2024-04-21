@@ -23,36 +23,43 @@ const createContacts = async (req, res) => {
         // .from("RequestType")
         // .where("name", reason);
 
-        let requestType = 0;
-        if(reason != "Vehicle Inquiries"){
-            requestType = 3;
-        } else{
-            requestType = 2;
-        }
+        const requestType = 2;
+        // if(reason != "Vehicle Inquiries"){
+        //     requestType = 3;
+        // } else{
+        //     requestType = 2;
+        // }
 
         let requestID = await db('Request').insert({ description: message, requestTypeID: requestType, createdDatetime: dayjs().utc().format('YYYY-MM-DD HH:mm:ss'), statusID: 1})
-        .then(async function (id){
-            let insertObject = null;
+            .then(async function (id){
+                let insertObject = {
+                    requestID: id[0],
+                    customerID: customerID,
+                    customerName: name,
+                    customerEmail: email,
+                    type: reason,
+                    carID: carID
+                };
             //insert based on what is provided
-            if(customerID && carID && requestType == 2){
-                insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, customerID: customerID, carID: carID};
-            } else if((!customerID || !carID) && requestType == 3){
-                console.error(error);
-                res.status(400).send('You need to input a customerID and a carID for a Vehicle Inquirie');  
-            } else if(customerID && carID && requestType == 2){
-                insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, customerID: customerID, carID: carID}; 
-            } else if(customerID && !carID && requestType == 2){
-                insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, customerID: customerID}; 
-            } else if(!customerID && carID && requestType == 2){
-                insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, carID: carID}; 
-            } else{
-                insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason};
-            }
+            // if(customerID && carID && requestType == 2){
+            //     insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, customerID: customerID, carID: carID};
+            // } else if((!customerID || !carID) && requestType == 3){
+            //     console.error(error);
+            //     res.status(400).send('You need to input a customerID and a carID for a Vehicle Inquiry');  
+            // } else if(customerID && carID && requestType == 2){
+            //     insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, customerID: customerID, carID: carID}; 
+            // } else if(customerID && !carID && requestType == 2){
+            //     insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, customerID: customerID}; 
+            // } else if(!customerID && carID && requestType == 2){
+            //     insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason, carID: carID}; 
+            // } else{
+            //     insertObject = {requestID: id[0], customerName: name, customerEmail: email, type: reason};
+            // }
 
-            console.log(insertObject);
+                console.log(insertObject);
 
-            await db('CustomerServiceRequest')
-            .insert(insertObject);
+                await db('CustomerServiceRequest')
+                    .insert(insertObject);
         });
 
         // // Send acknowledgment email to the user
