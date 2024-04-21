@@ -1,3 +1,4 @@
+
 const express = require('express');
 const dayjs = require('dayjs');
 const db = require('../database');
@@ -62,24 +63,25 @@ const createContacts = async (req, res) => {
                     .insert(insertObject);
         });
 
-        // // Send acknowledgment email to the user
-        // let transporter = nodemailer.createTransport({
-        //     host: "smtp.gmail.com", 
-        //     port: 587, // or 465 for SSL
-        //     secure: false, // true for 465, false for other ports
-        //     auth: {
-        //         user: process.env.EMAIL_USER,
-        //         pass: process.env.EMAIL_PASS, //gmail application password
-        //     },
-        // });
+        // Send acknowledgment email to the user
+        let transporter = nodemailer.createTransport({
+            host: "smtp.gmail.com", 
+            port: 587, // or 465 for SSL
+            secure: false, // true for 465, false for other ports
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS, //gmail application password
+            },
+        });
 
-        // await transporter.sendMail({
-        //     from: '"GyroGoGo" <kiyaye1@gmail.com>',
-        //     to: email,
-        //     subject: "We received your inquiry",
-        //     text: "Thank you for contacting us. We'll get back to you soon.",
-        //     html: "<b>Thank you for contacting us. We'll get back to you soon.</b>",
-        // });
+        await transporter.sendMail({
+            from: '"GyroGoGo" <kiyaye1@gmail.com>',
+            to: email,
+            subject: "We received your inquiry",
+            text: "Thank you for contacting us. We'll get back to you soon.",
+            html: "<b>Thank you for contacting us. We'll get back to you soon.</b>",
+        });
+
 
         res.send('Inquiry submitted successfully.');
     } catch (error) {
