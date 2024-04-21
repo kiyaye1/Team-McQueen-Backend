@@ -33,4 +33,26 @@ async function addHourlyRate(req, res) {
     }
 }
 
-module.exports = { addHourlyRate };
+async function getCurrentHourlyRate(req, res) {
+    try {
+        const hourlyRate = await db.select('hourlyRate').from('HourlyRate').orderBy('effectiveDate', 'desc').first();
+        res.status(200).send(hourlyRate);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send("Server side error occurred");
+    }
+}
+
+async function getAllHourlyRates(req, res) {
+    try {
+        const hourlyRates = await db.select(['hourlyRateID', 'hourlyRate', 'effectiveDate']).from('HourlyRate');
+        res.status(200).send(hourlyRates);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send("Server side error occurred");
+    }
+}
+
+module.exports = { addHourlyRate, getCurrentHourlyRate, getAllHourlyRates };
+
+
