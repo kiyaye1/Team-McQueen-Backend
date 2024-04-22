@@ -18,12 +18,12 @@ function getCustomer(req, res) {
     // security filtering
     if (req.role === 0) {
         // requestor is a customer
-        if (req.userID != req.customerID) { // allow the user to access their own information
+        if (req.userID != customerID) { // allow the user to access their own information
             return res.status(401).send("This user is not authorized to access this data");
         }
     }
 
-    if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
+	else if (!(req.role == 1 || req.role == 2 || req.role == 4)) {
         return res.status(401).send("This user is not authorized to access this data");
     }
 
