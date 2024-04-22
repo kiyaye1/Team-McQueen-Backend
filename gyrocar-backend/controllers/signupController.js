@@ -185,7 +185,7 @@ const postCCI = async(req, res) => {
             from: '"GyroGoGo" <kiyaye1@gmail.com>',
             to: customer.emailAddress,
             subject: 'Verify Your Email',
-            html: `<p>Thank you for registering. Please click <a href="http://localhost:3000/verify-email?token=${verificationToken}">here</a> to verify your email.</p>`
+            html: `<p>Thank you for registering. Please click <a href="https://www.mcqueen-gyrocar.com/verify-email?token=${verificationToken}">here</a> to verify your email.</p>`
         };
 
         transporter.sendMail(mailOptions, function(error, info) {
