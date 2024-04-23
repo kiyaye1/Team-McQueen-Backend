@@ -799,7 +799,7 @@ async function getAvailableReservations(req, res) {
     if (!dayjs(req.body["scheduledStartDatetime"]).isValid()) {
         return res.status(400).send("scheduledStartDatetime is improperly formatted");
     }
-    req.body["scheduledStartDatetime"] = dayjs.utc(req.body["scheduledStartDatetime"]).format('YYYY-MM-DD HH:mm:ss');
+    req.body["scheduledStartDatetime"] = dayjs(req.body["scheduledStartDatetime"]).format('YYYY-MM-DD HH:mm:ss');
 
     if (!req.body["scheduledEndDatetime"]) {
         return res.status(400).send("A scheduledEndDatetime must be specified in request body");
@@ -807,7 +807,7 @@ async function getAvailableReservations(req, res) {
     if (!dayjs(req.body["scheduledEndDatetime"]).isValid()) {
         return res.status(400).send("scheduledEndDatetime is improperly formatted");
     }
-    req.body["scheduledEndDatetime"] = dayjs.utc(req.body["scheduledEndDatetime"]).format('YYYY-MM-DD HH:mm:ss');
+    req.body["scheduledEndDatetime"] = dayjs(req.body["scheduledEndDatetime"]).format('YYYY-MM-DD HH:mm:ss');
 
 
     if (!req.body["startStationID"]) {
