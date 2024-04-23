@@ -106,6 +106,7 @@ const adminDashTotalsRoute = require('./routes/adminDashTotals');
 const appmetricsRoute = require('./routes/appMetrics');
 const rentalmetricsRoute = require('./routes/rentalMetrics');
 const hourlyRateRoute = require('./routes/hourlyRate');
+const dailyMaxRoute = require('./routes/dailyMax');
 
 app.use('/loginInfo', loginInfoRoute);
 app.use('/customers', customersRoute);
@@ -117,6 +118,7 @@ app.use('/admindashtotals', adminDashTotalsRoute);
 app.use('/appmetrics', appmetricsRoute);
 app.use('/rentalmetrics', rentalmetricsRoute);
 app.use('/hourlyrate', hourlyRateRoute);
+app.use('/dailymax', dailyMaxRoute);
 
 // Root endpoint to quickly check if the API is running
 app.get("/", (request, response) => {
