@@ -124,115 +124,109 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
     return [valid, errorMessage];
 }
 
-async function calculateReservationCost(startDatetime, endDatetime, hourlyRate) {
-    return db.select('dailyMax').from('DailyMax').first().then(
-        function (result) {
-            DAILY_MAXIMUM = result.dailyMax;
+function calculateReservationCost(startDatetime, endDatetime, hourlyRate) {
+    const DAILY_MAXIMUM = 120;
 
+    let totalCost = 0;
+    let currentDate = dayjs.utc(startDatetime);
 
-            let totalCost = 0;
-            let currentDate = dayjs.utc(startDatetime);
+    // iterate through each day 
+    // and determine if it exceeds the daily maximum
+    while (currentDate.isBefore(dayjs.utc(endDatetime))) {
+        let nextDate = dayjs.utc(currentDate).add(1, 'day').startOf('day'); // get the next day at midnight
+        
+        // if the next day exceeds the endDatetime
+        // just use the endDatetime
+        if (nextDate.isAfter(endDatetime)) {
+            nextDate = dayjs.utc(endDatetime);
+        }
 
-            // iterate through each day 
-            // and determine if it exceeds the daily maximum
-            while (currentDate.isBefore(dayjs.utc(endDatetime))) {
-                let nextDate = dayjs.utc(currentDate).add(1, 'day').startOf('day'); // get the next day at midnight
-                
-                // if the next day exceeds the endDatetime
-                // just use the endDatetime
-                if (nextDate.isAfter(endDatetime)) {
-                    nextDate = dayjs.utc(endDatetime);
-                }
+        // calculate the amount of hours from the 
+        // current day iteration and the next day
+        let hoursInDay = nextDate.diff(currentDate, 'hours', true);
+        let costForDay = hoursInDay * hourlyRate;
 
-                // calculate the amount of hours from the 
-                // current day iteration and the next day
-                let hoursInDay = nextDate.diff(currentDate, 'hours', true);
-                let costForDay = hoursInDay * hourlyRate;
+        // if the cost for that day would exceed
+        // the daily maximum then add the daily maximum to the total
+        if (costForDay > DAILY_MAXIMUM) {
+            totalCost += DAILY_MAXIMUM
+        }
+        else {
+            totalCost += costForDay;
+        }
 
-                // if the cost for that day would exceed
-                // the daily maximum then add the daily maximum to the total
-                if (costForDay > DAILY_MAXIMUM) {
-                    totalCost += DAILY_MAXIMUM
-                }
-                else {
-                    totalCost += costForDay;
-                }
+        // move to the next date
+        currentDate = nextDate;
+    }
 
-                // move to the next date
-                currentDate = nextDate;
-            }
-
-            // return the total cost rounded to 2 decimal places
-            return Math.round(totalCost * 100) / 100;
-        });
+    // return the total cost rounded to 2 decimal places
+    return Math.round(totalCost * 100) / 100;
 }
 
 function transformReservation(result, hourlyRate) {
     // calculate the cost of the reservation
-    return calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate)
-        .then(function (cost) {
+    let cost = calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate);
 
-        return {
-            reservationID: result["reservationID"],
-            scheduledStartDatetime: result["scheduledStartDatetime"],
-            scheduledEndDatetime: result["scheduledEndDatetime"],
-            cost: cost,
-            actualStartDatetime: result["actualStartDatetime"],
-            actualEndDatetime: result["actualEndDatetime"],
-            isComplete: result["isComplete"],
-            startStation: {
-                stationID: result["StartStation.stationID"],
-                country: result["StartStation.country"],
-                state: result["StartStation.state"],
-                county: result["StartStation.county"],
-                city: result["StartStation.city"],
-                zip: result["StartStation.zip"],
-                name: result["StartStation.name"],
-                coordinates: renameCoordinates(result["StartStation.coordinates"])
-            },
-            endStation: {
-                stationID: result["EndStation.stationID"],
-                country: result["EndStation.country"],
-                state: result["EndStation.state"],
-                county: result["EndStation.county"],
-                city: result["EndStation.city"],
-                zip: result["EndStation.zip"],
-                name: result["EndStation.name"],
-                coordinates: renameCoordinates(result["EndStation.coordinates"])
-            },
-            customer: {
-                customerID: result["Customer.customerID"],
-                firstName: result["Customer.firstName"],
-                lastName: result["Customer.lastName"],
-                middleInitial: result["Customer.middleInitial"],
-                suffix: result["Customer.suffix"],
-                createdDatetime: result["Customer.createdDatetime"],
-                phoneNumber: result["Customer.phoneNumber"],
-                emailAddress: result["Customer.emailAddress"],
-                phoneVerified: result["Customer.phoneVerified"],
-                emailVerified: result["Customer.emailVerified"],
-                status: {
-                    statusCode: result["CustomerStatus.statusCode"],
-                    shortDescription: result["CustomerStatus.shortDescription"],
-                    longDescription: result["CustomerStatus.longDescription"]
-                }
-            },
-            car: {
-                CarID: result["Car.CarID"],
-                installDatetime: result["Car.installDatetime"],
-                model: {
-                    modelID: result["CarModel.carModelID"],
-                    carModelName: result["CarModel.carModelName"],
-                    description: result["CarModel.description"]
-                },
-                status: {
-                    statusCode: result["CarStatus.statusCode"],
-                    shortDescription: result["CarStatus.shortDescription"],
-                    longDescription: result["CarStatus.longDescription"]
-                }
+    return {
+        reservationID: result["reservationID"],
+        scheduledStartDatetime: result["scheduledStartDatetime"],
+        scheduledEndDatetime: result["scheduledEndDatetime"],
+        cost: cost,
+        actualStartDatetime: result["actualStartDatetime"],
+        actualEndDatetime: result["actualEndDatetime"],
+        isComplete: result["isComplete"],
+        startStation: {
+            stationID: result["StartStation.stationID"],
+            country: result["StartStation.country"],
+            state: result["StartStation.state"],
+            county: result["StartStation.county"],
+            city: result["StartStation.city"],
+            zip: result["StartStation.zip"],
+            name: result["StartStation.name"],
+            coordinates: renameCoordinates(result["StartStation.coordinates"])
+        },
+        endStation: {
+            stationID: result["EndStation.stationID"],
+            country: result["EndStation.country"],
+            state: result["EndStation.state"],
+            county: result["EndStation.county"],
+            city: result["EndStation.city"],
+            zip: result["EndStation.zip"],
+            name: result["EndStation.name"],
+            coordinates: renameCoordinates(result["EndStation.coordinates"])
+        },
+        customer: {
+            customerID: result["Customer.customerID"],
+            firstName: result["Customer.firstName"],
+            lastName: result["Customer.lastName"],
+            middleInitial: result["Customer.middleInitial"],
+            suffix: result["Customer.suffix"],
+            createdDatetime: result["Customer.createdDatetime"],
+            phoneNumber: result["Customer.phoneNumber"],
+            emailAddress: result["Customer.emailAddress"],
+            phoneVerified: result["Customer.phoneVerified"],
+            emailVerified: result["Customer.emailVerified"],
+            status: {
+                statusCode: result["CustomerStatus.statusCode"],
+                shortDescription: result["CustomerStatus.shortDescription"],
+                longDescription: result["CustomerStatus.longDescription"]
             }
-        };
-    });
+        },
+        car: {
+            CarID: result["Car.CarID"],
+            installDatetime: result["Car.installDatetime"],
+            model: {
+                modelID: result["CarModel.carModelID"],
+                carModelName: result["CarModel.carModelName"],
+                description: result["CarModel.description"]
+            },
+            status: {
+                statusCode: result["CarStatus.statusCode"],
+                shortDescription: result["CarStatus.shortDescription"],
+                longDescription: result["CarStatus.longDescription"]
+            }
+        }
+    };
 }
 
 function renameCoordinates(obj) {
@@ -468,7 +462,7 @@ async function createReservation(req, res) {
             const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
 
             const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
-            const totalCost = await calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
+            const totalCost = calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
 
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: totalCost * 100, // value in cents
@@ -892,7 +886,7 @@ async function getAvailableReservations(req, res) {
 
     station[0]["carsAvailable"] = cars;
     station[0]["costPerHour"] = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
-    station[0]["cost"] = await calculateReservationCost(req.body["scheduledStartDatetime"], req.body["scheduledEndDatetime"], station[0]["costPerHour"]);
+    station[0]["cost"] = calculateReservationCost(req.body["scheduledStartDatetime"], req.body["scheduledEndDatetime"], station[0]["costPerHour"]);
     
     res.send(station);
 }
