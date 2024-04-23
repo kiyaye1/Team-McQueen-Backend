@@ -169,68 +169,70 @@ async function calculateReservationCost(startDatetime, endDatetime, hourlyRate) 
 
 function transformReservation(result, hourlyRate) {
     // calculate the cost of the reservation
-    let cost = calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate);
+    return calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate)
+        .then(function (cost) {
 
-    return {
-        reservationID: result["reservationID"],
-        scheduledStartDatetime: result["scheduledStartDatetime"],
-        scheduledEndDatetime: result["scheduledEndDatetime"],
-        cost: cost,
-        actualStartDatetime: result["actualStartDatetime"],
-        actualEndDatetime: result["actualEndDatetime"],
-        isComplete: result["isComplete"],
-        startStation: {
-            stationID: result["StartStation.stationID"],
-            country: result["StartStation.country"],
-            state: result["StartStation.state"],
-            county: result["StartStation.county"],
-            city: result["StartStation.city"],
-            zip: result["StartStation.zip"],
-            name: result["StartStation.name"],
-            coordinates: renameCoordinates(result["StartStation.coordinates"])
-        },
-        endStation: {
-            stationID: result["EndStation.stationID"],
-            country: result["EndStation.country"],
-            state: result["EndStation.state"],
-            county: result["EndStation.county"],
-            city: result["EndStation.city"],
-            zip: result["EndStation.zip"],
-            name: result["EndStation.name"],
-            coordinates: renameCoordinates(result["EndStation.coordinates"])
-        },
-        customer: {
-            customerID: result["Customer.customerID"],
-            firstName: result["Customer.firstName"],
-            lastName: result["Customer.lastName"],
-            middleInitial: result["Customer.middleInitial"],
-            suffix: result["Customer.suffix"],
-            createdDatetime: result["Customer.createdDatetime"],
-            phoneNumber: result["Customer.phoneNumber"],
-            emailAddress: result["Customer.emailAddress"],
-            phoneVerified: result["Customer.phoneVerified"],
-            emailVerified: result["Customer.emailVerified"],
-            status: {
-                statusCode: result["CustomerStatus.statusCode"],
-                shortDescription: result["CustomerStatus.shortDescription"],
-                longDescription: result["CustomerStatus.longDescription"]
-            }
-        },
-        car: {
-            CarID: result["Car.CarID"],
-            installDatetime: result["Car.installDatetime"],
-            model: {
-                modelID: result["CarModel.carModelID"],
-                carModelName: result["CarModel.carModelName"],
-                description: result["CarModel.description"]
+        return {
+            reservationID: result["reservationID"],
+            scheduledStartDatetime: result["scheduledStartDatetime"],
+            scheduledEndDatetime: result["scheduledEndDatetime"],
+            cost: cost,
+            actualStartDatetime: result["actualStartDatetime"],
+            actualEndDatetime: result["actualEndDatetime"],
+            isComplete: result["isComplete"],
+            startStation: {
+                stationID: result["StartStation.stationID"],
+                country: result["StartStation.country"],
+                state: result["StartStation.state"],
+                county: result["StartStation.county"],
+                city: result["StartStation.city"],
+                zip: result["StartStation.zip"],
+                name: result["StartStation.name"],
+                coordinates: renameCoordinates(result["StartStation.coordinates"])
             },
-            status: {
-                statusCode: result["CarStatus.statusCode"],
-                shortDescription: result["CarStatus.shortDescription"],
-                longDescription: result["CarStatus.longDescription"]
+            endStation: {
+                stationID: result["EndStation.stationID"],
+                country: result["EndStation.country"],
+                state: result["EndStation.state"],
+                county: result["EndStation.county"],
+                city: result["EndStation.city"],
+                zip: result["EndStation.zip"],
+                name: result["EndStation.name"],
+                coordinates: renameCoordinates(result["EndStation.coordinates"])
+            },
+            customer: {
+                customerID: result["Customer.customerID"],
+                firstName: result["Customer.firstName"],
+                lastName: result["Customer.lastName"],
+                middleInitial: result["Customer.middleInitial"],
+                suffix: result["Customer.suffix"],
+                createdDatetime: result["Customer.createdDatetime"],
+                phoneNumber: result["Customer.phoneNumber"],
+                emailAddress: result["Customer.emailAddress"],
+                phoneVerified: result["Customer.phoneVerified"],
+                emailVerified: result["Customer.emailVerified"],
+                status: {
+                    statusCode: result["CustomerStatus.statusCode"],
+                    shortDescription: result["CustomerStatus.shortDescription"],
+                    longDescription: result["CustomerStatus.longDescription"]
+                }
+            },
+            car: {
+                CarID: result["Car.CarID"],
+                installDatetime: result["Car.installDatetime"],
+                model: {
+                    modelID: result["CarModel.carModelID"],
+                    carModelName: result["CarModel.carModelName"],
+                    description: result["CarModel.description"]
+                },
+                status: {
+                    statusCode: result["CarStatus.statusCode"],
+                    shortDescription: result["CarStatus.shortDescription"],
+                    longDescription: result["CarStatus.longDescription"]
+                }
             }
-        }
-    };
+        };
+    });
 }
 
 function renameCoordinates(obj) {
@@ -466,7 +468,7 @@ async function createReservation(req, res) {
             const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
 
             const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
-            const totalCost = calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
+            const totalCost = await calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
 
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: totalCost * 100, // value in cents
