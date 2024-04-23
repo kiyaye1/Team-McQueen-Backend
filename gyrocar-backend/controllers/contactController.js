@@ -269,12 +269,12 @@ const updateMechanicRequests = async (req, res) => {
     try {
         await db.transaction(async trx => {
             const requestUpdateObject = {description: description, assignedToID: assignedToID, completedDatetime: completedDatetime, statusID: requestStatusID};
-            if (!(requestUpdateObject.description === undefined && requestUpdateObject.assignedToID === undefined && requestUpdateObject.completedDatetime === undefined && requestUpdateObject.requestStatusID === undefined)) {
+            if (!(requestUpdateObject.description === undefined && requestUpdateObject.assignedToID === undefined && requestUpdateObject.completedDatetime === undefined && requestUpdateObject.statusID === undefined)) {
                 await trx('Request').where({requestID: requestID}).update(requestUpdateObject);
             }
 
             const serviceRequestUpdateObject = {fixDescription: fixDescription, carID: carID};
-            if (!(serviceRequestUpdateObject === undefined && serviceRequestUpdateObject.carID === undefined)) {
+            if (!(serviceRequestUpdateObject.fixDescription === undefined && serviceRequestUpdateObject.carID === undefined)) {
                 await trx('ServiceRequest').where({requestID: requestID}).update(serviceRequestUpdateObject);
             }
         });
