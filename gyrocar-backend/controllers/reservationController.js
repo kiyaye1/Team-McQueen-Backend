@@ -125,47 +125,51 @@ async function isValidReservation(startStation, endStation, startTime, endTime, 
 }
 
 async function calculateReservationCost(startDatetime, endDatetime, hourlyRate) {
-    const DAILY_MAXIMUM = (await db.select('dailyMax').from('DailyMax').first()).dailyMax;
+    return db.select('dailyMax').from('DailyMax').first().then(
+        function (result) {
+            DAILY_MAXIMUM = result.dailyMax;
 
-    let totalCost = 0;
-    let currentDate = dayjs.utc(startDatetime);
 
-    // iterate through each day 
-    // and determine if it exceeds the daily maximum
-    while (currentDate.isBefore(dayjs.utc(endDatetime))) {
-        let nextDate = dayjs.utc(currentDate).add(1, 'day').startOf('day'); // get the next day at midnight
-        
-        // if the next day exceeds the endDatetime
-        // just use the endDatetime
-        if (nextDate.isAfter(endDatetime)) {
-            nextDate = dayjs.utc(endDatetime);
-        }
+            let totalCost = 0;
+            let currentDate = dayjs.utc(startDatetime);
 
-        // calculate the amount of hours from the 
-        // current day iteration and the next day
-        let hoursInDay = nextDate.diff(currentDate, 'hours', true);
-        let costForDay = hoursInDay * hourlyRate;
+            // iterate through each day 
+            // and determine if it exceeds the daily maximum
+            while (currentDate.isBefore(dayjs.utc(endDatetime))) {
+                let nextDate = dayjs.utc(currentDate).add(1, 'day').startOf('day'); // get the next day at midnight
+                
+                // if the next day exceeds the endDatetime
+                // just use the endDatetime
+                if (nextDate.isAfter(endDatetime)) {
+                    nextDate = dayjs.utc(endDatetime);
+                }
 
-        // if the cost for that day would exceed
-        // the daily maximum then add the daily maximum to the total
-        if (costForDay > DAILY_MAXIMUM) {
-            totalCost += DAILY_MAXIMUM
-        }
-        else {
-            totalCost += costForDay;
-        }
+                // calculate the amount of hours from the 
+                // current day iteration and the next day
+                let hoursInDay = nextDate.diff(currentDate, 'hours', true);
+                let costForDay = hoursInDay * hourlyRate;
 
-        // move to the next date
-        currentDate = nextDate;
-    }
+                // if the cost for that day would exceed
+                // the daily maximum then add the daily maximum to the total
+                if (costForDay > DAILY_MAXIMUM) {
+                    totalCost += DAILY_MAXIMUM
+                }
+                else {
+                    totalCost += costForDay;
+                }
 
-    // return the total cost rounded to 2 decimal places
-    return Math.round(totalCost * 100) / 100;
+                // move to the next date
+                currentDate = nextDate;
+            }
+
+            // return the total cost rounded to 2 decimal places
+            return Math.round(totalCost * 100) / 100;
+        });
 }
 
-async function transformReservation(result, hourlyRate) {
+function transformReservation(result, hourlyRate) {
     // calculate the cost of the reservation
-    let cost = await calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate);
+    let cost = calculateReservationCost(result["scheduledStartDatetime"], result["scheduledEndDatetime"], hourlyRate);
 
     return {
         reservationID: result["reservationID"],
@@ -462,7 +466,7 @@ async function createReservation(req, res) {
             const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
 
             const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
-            const totalCost = await calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
+            const totalCost = calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
 
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: totalCost * 100, // value in cents
@@ -886,7 +890,7 @@ async function getAvailableReservations(req, res) {
 
     station[0]["carsAvailable"] = cars;
     station[0]["costPerHour"] = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
-    station[0]["cost"] = await calculateReservationCost(req.body["scheduledStartDatetime"], req.body["scheduledEndDatetime"], station[0]["costPerHour"]);
+    station[0]["cost"] = calculateReservationCost(req.body["scheduledStartDatetime"], req.body["scheduledEndDatetime"], station[0]["costPerHour"]);
     
     res.send(station);
 }
