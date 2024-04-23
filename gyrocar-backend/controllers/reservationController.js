@@ -442,61 +442,74 @@ async function createReservation(req, res) {
         return res.status(400).send(errorMessage);
     }
 
-    let query = db.insert({
-        startStationID: startStationID,
-        endStationID: endStationID,
-        customerID: customerID,
-        scheduledStartDatetime: scheduledStartDatetime.format('YYYY-MM-DD HH:mm:ss'),
-        scheduledEndDatetime: scheduledEndDatetime.format('YYYY-MM-DD HH:mm:ss'),
-        carID: carID,
-        isComplete: 0
-    }).into('CarReservation');
+    let trx = await db.transaction();
 
-    query.then(async function (reservationResult) {
-        
-        // create payment with stripe
-        // get the most recent hourly rate for the car
-        const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
+    try {
+        let query = trx.insert({
+            startStationID: startStationID,
+            endStationID: endStationID,
+            customerID: customerID,
+            scheduledStartDatetime: scheduledStartDatetime.format('YYYY-MM-DD HH:mm:ss'),
+            scheduledEndDatetime: scheduledEndDatetime.format('YYYY-MM-DD HH:mm:ss'),
+            carID: carID,
+            isComplete: 0
+        }).into('CarReservation');
 
-        const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
-        const totalCost = calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
+        query.then(async function (reservationResult) {
+            
+            // create payment with stripe
+            // get the most recent hourly rate for the car
+            const latestHourlyRate = await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1);
 
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: totalCost * 100, // value in cents
-            currency: 'usd',
-            confirm: true,
-            payment_method: req.body.paymentMethodID,
-            customer: customer.stripeCustomerID,
-            automatic_payment_methods: {
-                enabled: true,
-                allow_redirects: 'never'
-            }
-        });
+            const reservationDuration = dayjs.duration(scheduledEndDatetime.diff(scheduledStartDatetime)).asHours()
+            const totalCost = calculateReservationCost(scheduledStartDatetime, scheduledEndDatetime, latestHourlyRate[0].hourlyRate);
 
-        // save the transaction into the database
-        let currentDatetime = dayjs.utc().format('YYYY-MM-DD hh:mm:ss');
-        let paymentInsert = await db.insert(
-                {
-                    customerID: customerID,
-                    reservationID: reservationResult[0],
-                    transactionHandler: "Stripe",
-                    paymentStatusID: 3, // completed
-                    datetimeStarted: currentDatetime,
-                    datetimeComplete:  currentDatetime,
-                    hourlyRateID: latestHourlyRate[0].hourlyRateID,
-                    hours: reservationDuration,
-                    rentalAmount: totalCost,
-                    damageAmount: 0,
-                    totalAmount: totalCost
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: totalCost * 100, // value in cents
+                currency: 'usd',
+                confirm: true,
+                payment_method: req.body.paymentMethodID,
+                customer: customer.stripeCustomerID,
+                automatic_payment_methods: {
+                    enabled: true,
+                    allow_redirects: 'never'
                 }
-            ).into('PaymentTransaction');
+            })
+                .catch(function (err) {
+                    console.log(err);
+                    throw err
+                });
 
+            // save the transaction into the database
+            let currentDatetime = dayjs.utc().format('YYYY-MM-DD hh:mm:ss');
+            let paymentInsert = await trx.insert(
+                    {
+                        customerID: customerID,
+                        reservationID: reservationResult[0],
+                        transactionHandler: "Stripe",
+                        paymentStatusID: 3, // completed
+                        datetimeStarted: currentDatetime,
+                        datetimeComplete:  currentDatetime,
+                        hourlyRateID: latestHourlyRate[0].hourlyRateID,
+                        hours: reservationDuration,
+                        rentalAmount: totalCost,
+                        damageAmount: 0,
+                        totalAmount: totalCost
+                    }
+                ).into('PaymentTransaction');
 
-        res.json({ reservationID: reservationResult[0] }); // send back the auto incremented reservationID
-    })
-        .catch(function (err) {
-            res.status(500).send("Unexpected server side error");
-        });
+            await trx.commit();
+            res.json({ reservationID: reservationResult[0] }); // send back the auto incremented reservationID
+        })
+            .catch(function (err) {
+                res.status(500).send("Unexpected server side error");
+            });
+    }
+    catch (err) {
+        trx.rollback();
+        console.log(err);
+        res.status(500).send("Unexpected server side error");
+    }
 }
 async function updateReservation(req, res) {
     // security filtering
