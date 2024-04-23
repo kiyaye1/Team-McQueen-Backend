@@ -890,7 +890,7 @@ async function getAvailableReservations(req, res) {
 
     station[0]["carsAvailable"] = cars;
     station[0]["costPerHour"] = (await db.select(['hourlyRateID', 'hourlyRate']).from('HourlyRate').orderBy('effectiveDate', 'DESC').limit(1))[0].hourlyRate;
-    station[0]["cost"] = calculateReservationCost(req.body["scheduledStartDatetime"], req.body["scheduledEndDatetime"], station[0]["costPerHour"]);
+    station[0]["cost"] = await calculateReservationCost(req.body["scheduledStartDatetime"], req.body["scheduledEndDatetime"], station[0]["costPerHour"]);
     
     res.send(station);
 }
