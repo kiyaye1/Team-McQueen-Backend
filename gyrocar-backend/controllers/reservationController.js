@@ -872,7 +872,7 @@ async function getAvailableReservations(req, res) {
     // collect the rest of the information needed for the response
     let query = db.select(['stationID', 'state', 'county', 'city', 'state', 'zip', 'coordinates', 'streetAddress', 'name'])
         .from('Station')
-        .where('stationID', req.body["endStationID"]);
+        .where('stationID', req.body["startStationID"]);
     
     if (req.body["coordinates"]) {
         query.select(db.raw('ST_DISTANCE_SPHERE(coordinates, POINT(?, ?)) / ? AS distanceInMiles', 
